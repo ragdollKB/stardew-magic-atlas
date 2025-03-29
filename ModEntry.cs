@@ -3,8 +3,10 @@ using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Menus;
+using StardewValley.Tools;
 using System;
 using System.IO;
+using System.Reflection;
 using WarpMod.Utility;
 
 namespace WarpMod
@@ -33,8 +35,9 @@ namespace WarpMod
             helper.Events.GameLoop.SaveLoaded += this.OnSaveLoaded;
             helper.Events.GameLoop.ReturnedToTitle += this.OnReturnedToTitle;
             helper.Events.Display.WindowResized += this.OnWindowResized;
+            helper.Events.GameLoop.DayStarted += this.OnDayStarted;
 
-            this.Monitor.Log("Warp Mod initialized with custom grid menu", LogLevel.Info);
+            this.Monitor.Log("Magic Atlas mod initialized", LogLevel.Info);
         }
 
         /// <summary>Raised after the player presses a button on the keyboard, controller, or mouse.</summary>
@@ -58,11 +61,16 @@ namespace WarpMod
             }
         }
 
+        /// <summary>Called when a new day starts</summary>
+        private void OnDayStarted(object sender, DayStartedEventArgs e)
+        {
+            // Nothing needed here anymore
+        }
+
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
             // Refresh settings when save is loaded
             this.mapWarpEnabled = this.config.MapWarpEnabled;
-            this.Monitor.Log($"Grid warp is {(this.mapWarpEnabled ? "enabled" : "disabled")}", LogLevel.Info);
             
             // Log available map files to verify our copied files are accessible
             this.Monitor.Log("Checking for map files in assets/maps folder...", LogLevel.Info);

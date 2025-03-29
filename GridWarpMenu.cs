@@ -552,6 +552,7 @@ namespace WarpMod
             // If search is empty, restore original locations
             if (string.IsNullOrEmpty(searchText) && originalTabLocations.Count > 0)
             {
+                // Pass the original locations list directly, not as a string
                 locationManager.UpdateCategoryLocations(currentTab, originalTabLocations);
                 originalTabLocations.Clear();
             }
@@ -562,6 +563,7 @@ namespace WarpMod
                     .Where(loc => locationManager.GetDisplayName(loc).ToLower().Contains(searchText.ToLower()))
                     .ToList();
                 
+                // Pass the filtered list directly, not as a string
                 locationManager.UpdateCategoryLocations(currentTab, filteredLocations);
             }
             
@@ -654,7 +656,13 @@ namespace WarpMod
         
         private void WarpToLocation(string locationName, int tileX, int tileY)
         {
-            // Close menu first
+            // Create warp particles before closing menu if effects are enabled
+            if (config.UseWarpEffects)
+            {
+                CreateWarpParticles();
+            }
+            
+            // Close menu 
             exitThisMenu();
             
             try
@@ -662,6 +670,12 @@ namespace WarpMod
                 // Let the location manager handle the warp
                 if (locationManager.WarpToLocation(locationName, tileX, tileY))
                 {
+                    // Add arrival effects after warping if effects are enabled
+                    if (config.UseWarpEffects)
+                    {
+                        AddArrivalEffect();
+                    }
+                    
                     Monitor.Log($"Successfully warped to {locationName} at tile ({tileX}, {tileY})");
                 }
                 else

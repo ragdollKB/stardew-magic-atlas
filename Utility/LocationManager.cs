@@ -83,7 +83,14 @@ namespace WarpMod.Utility
                 "RailroadTemporary", // Temporary railroad map
                 "event", // Event maps
                 "_Savage", // Savage maps
-                "Tutorial" // Tutorial maps
+                "Tutorial", // Tutorial maps
+                "BeachNightMarket", // Beach Night Market - requested to remove
+                "Cellar2", // Cellar 2 - requested to remove
+                "Cellar3", // Cellar 3 - requested to remove 
+                "Cellar4", // Cellar 4 - requested to remove
+                "FarmHouse", // Farmhouse - requested to remove
+                "QiNutRoom", // Qi Nut Room - requested to remove
+                "Summit" // Summit - requested to remove
             };
             
             foreach (var map in excludedMaps)
@@ -565,24 +572,19 @@ namespace WarpMod.Utility
         }
 
         /// <summary>
-        /// Updates the list of locations for a specific category
+        /// Update the locations in a category with a new list of locations
         /// </summary>
-        /// <param name="category">The category to update</param>
-        /// <param name="searchText">Optional search text to filter locations</param>
-        /// <returns>The updated list of location names</returns>
-        public List<string> UpdateCategoryLocations(string category, string searchText = "")
+        public void UpdateCategoryLocations(string category, List<string> locations)
         {
-            if (!locationTabs.ContainsKey(category))
-                return new List<string>();
-                
-            // If no search text, return the full list for the category
-            if (string.IsNullOrWhiteSpace(searchText))
-                return locationTabs[category];
-                
-            // Filter locations by search text
-            return locationTabs[category]
-                .Where(location => location.ToLower().Contains(searchText.ToLower()))
-                .ToList();
+            if (locationTabs.ContainsKey(category))
+            {
+                locationTabs[category] = new List<string>(locations);
+                Monitor.Log($"Updated {locations.Count} locations in category: {category}", LogLevel.Debug);
+            }
+            else
+            {
+                Monitor.Log($"Cannot update unknown category: {category}", LogLevel.Warn);
+            }
         }
 
         /// <summary>
@@ -628,7 +630,7 @@ namespace WarpMod.Utility
                 tileX = Math.Max(0, Math.Min(tileX.Value, targetLocation.map.Layers[0].LayerWidth - 1));
                 tileY = Math.Max(0, Math.Min(tileY.Value, targetLocation.map.Layers[0].LayerHeight - 1));
                 
-                // Perform the warp
+                // Perform the warp - let the game handle its own sound effects
                 Game1.warpFarmer(locationName, tileX.Value, tileY.Value, Game1.player.FacingDirection, true);
                 
                 // Log success
@@ -639,110 +641,6 @@ namespace WarpMod.Utility
             {
                 Monitor.Log($"Error warping to {locationName}: {ex.Message}", LogLevel.Error);
                 return false;
-            }
-        }
-
-        /// <summary>
-        /// Warp the player to a specific location
-        /// </summary>
-        public void WarpToLocation(string locationName, Vector2 tilePosition)
-        {
-            if (string.IsNullOrEmpty(locationName))
-            {
-                Monitor.Log("Cannot warp to a null or empty location name", LogLevel.Error);
-                return;
-            }
-
-            // Get the target location
-            GameLocation targetLocation = Game1.getLocationFromName(locationName);
-            if (targetLocation == null)
-            {
-                Monitor.Log($"Failed to find location '{locationName}' to warp to", LogLevel.Error);
-                return;
-            }
-
-            // Check if the target position is valid
-            if (!targetLocation.isTileOnMap(tilePosition))
-            {
-                // Find a valid warp position
-                tilePosition = FindValidWarpPosition(targetLocation);
-            }
-
-            // Perform the warp
-            Game1.player.position.Value = new Vector2(tilePosition.X * 64f, tilePosition.Y * 64f);
-            Game1.warpFarmer(locationName, (int)tilePosition.X, (int)tilePosition.Y, true);
-            Monitor.Log($"Warped player to {locationName} at position ({tilePosition.X}, {tilePosition.Y})", LogLevel.Debug);
-        }
-
-        /// <summary>
-        /// Find a valid warp position in a location
-        /// </summary>
-        private Vector2 FindValidWarpPosition(GameLocation location)
-        {
-            // Check if this location has warp points
-            if (location.warps.Count > 0)
-            {
-                var warp = location.warps[0];
-                return new Vector2(warp.X, warp.Y);
-            }
-
-            // Try to find a valid position in the center of the map
-            int centerX = location.map.Layers[0].LayerWidth / 2;
-            int centerY = location.map.Layers[0].LayerHeight / 2;
-            
-            // Start from the center and spiral outward to find a valid tile
-            for (int radius = 0; radius < 10; radius++)
-            {
-                for (int x = centerX - radius; x <= centerX + radius; x++)
-                {
-                    for (int y = centerY - radius; y <= centerY + radius; y++)
-                    {
-                        if (x < 0 || y < 0 || x >= location.map.Layers[0].LayerWidth || y >= location.map.Layers[0].LayerHeight)
-                            continue;
-                            
-                        if (FindSafeTile(x, y, location))
-                        {
-                            return new Vector2(x, y);
-                        }
-                    }
-                }
-            }
-            
-            // If no valid tile found, just return the center
-            return new Vector2(centerX, centerY);
-        }
-
-        /// <summary>
-        /// Check if a tile is safe for warping
-        /// </summary>
-        private bool FindSafeTile(int x, int y, GameLocation location)
-        {
-            try
-            {
-                // Use the available methods in Stardew Valley to check if tile is valid
-                Vector2 tileVector = new Vector2(x, y);
-                return location.isTileLocationOpen(tileVector) && !location.isWaterTile(x, y);
-            }
-            catch (Exception)
-            {
-                // Fallback in case of any exceptions
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Update the locations in a category
-        /// </summary>
-        public void UpdateCategoryLocations(string category, List<string> locations)
-        {
-            if (locationTabs.ContainsKey(category))
-            {
-                locationTabs[category] = new List<string>(locations);
-                Monitor.Log($"Updated {locations.Count} locations in category: {category}", LogLevel.Debug);
-            }
-            else
-            {
-                Monitor.Log($"Cannot update unknown category: {category}", LogLevel.Warn);
             }
         }
     }
