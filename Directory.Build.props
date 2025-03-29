@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <PropertyGroup>
+    <GamePath>E:\SteamLibrary\steamapps\common\Stardew Valley</GamePath>
+    <!-- Set to false to disable deploying your mod to the game folder when building -->
+    <EnableModDeploy Condition="'$(EnableModDeploy)' == ''">true</EnableModDeploy>
+    
+    <!-- Set to false to disable creating a .zip of your mod when building -->
+    <EnableModZip Condition="'$(EnableModZip)' == ''">true</EnableModZip>
+    
+    <!-- Set to true to disable the automatic deployment of your mod -->
+    <DisableModDeploy>false</DisableModDeploy>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>WarpMod</AssemblyName>
+    <RootNamespace>WarpMod</RootNamespace>
+    <Version>1.1.0</Version>
+    <TargetFramework>net6.0</TargetFramework>
+    <EnableHarmony>false</EnableHarmony>
+    <LangVersion>latest</LangVersion>
+    <EnableModDeploy Condition="'$(DisableModDeploy)' == 'true'">false</EnableModDeploy>
+    <ModFolderName>MagicAtlas</ModFolderName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.1.1" />
+  </ItemGroup>
+</Project>

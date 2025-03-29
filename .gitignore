@@ -1,0 +1,6 @@
+game_folder/
+*.log
+*.tmp
+bin/
+obj/
+.vscode/
