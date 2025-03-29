@@ -75,7 +75,6 @@ namespace WarpMod.Utility
                 "ElevatorShaft", // Elevator shaft
                 "fishingGame", // Fishing mini-game
                 "festivalSpot", // Festival spot
-                "LeoTreeHouse", // Leo's tree house (special access)
                 "Pool", // Generic pool map
                 "MermaidHouse", // Mermaid house (special access)
                 "AbandonedBuilding", // Abandoned building (not meant for warping)
@@ -315,61 +314,48 @@ namespace WarpMod.Utility
         /// </summary>
         private string DetermineMapCategory(string mapName)
         {
-            // Town locations (https://stardewvalleywiki.com/Category:Town_Locations)
+            // Town locations - only include maps that exist in assets/maps
             if (mapName == "Town" || mapName == "SeedShop" || mapName == "Saloon" ||
                 mapName == "ManorHouse" || mapName == "Blacksmith" || mapName == "Hospital" ||
-                mapName == "SamHouse" || mapName == "HaleyHouse" || mapName == "JojaMart" ||
-                mapName == "JoshHouse" || mapName == "Trailer" || mapName == "Trailer_Big" ||
-                mapName == "CommunityCenter" || mapName == "Theater" || mapName == "MovieTheater" ||
-                mapName == "AbandonedJojaMart" || mapName == "ArchaeologyHouse" || 
-                mapName == "HarveyRoom" || mapName == "HotelLobby" || mapName == "HotelRoom")
+                mapName == "JojaMart" || mapName == "AbandonedJojaMart" || mapName == "ArchaeologyHouse" ||
+                mapName == "HarveyRoom" || mapName == "MovieTheater")
                 return "Town";
 
-            // Farm locations
-            if (mapName == "Farm" || mapName.Contains("Farm_") ||
-                mapName.Contains("Coop") || mapName.Contains("Barn") || 
-                mapName.Contains("Shed") || mapName == "FarmHouse" ||
-                mapName == "Greenhouse" || mapName == "Cellar" || mapName == "Sunroom")
+            // Farm locations - only include maps that exist in assets/maps
+            if (mapName == "Farm" || mapName == "FarmHouse" ||
+                mapName == "Greenhouse" || mapName == "Cellar" || mapName == "FarmCave")
                 return "Farm";
 
-            // Beach locations (https://stardewvalleywiki.com/Category:Beach_Locations)
-            if (mapName == "Beach" || mapName == "ElliottHouse" || mapName == "FishShop" ||
-                mapName.Contains("Tide") || mapName == "Submarine" || mapName == "NightMarket" ||
-                mapName.Contains("Docks") || mapName.Contains("Pier"))
+            // Beach locations - only include maps that exist in assets/maps
+            if (mapName == "Beach" || mapName == "ElliottHouse" || mapName == "FishShop")
                 return "Beach";
 
-            // Desert locations (https://stardewvalleywiki.com/Category:Desert_Locations)
-            if (mapName == "Desert" || mapName == "SandyHouse" || mapName == "SandyShop" ||
-                mapName == "SkullCave" || mapName == "ClubDesert" || mapName == "CalicoCasino" ||
-                mapName == "Oasis" || mapName.Contains("Desert_"))
+            // Desert locations - only include maps that exist in assets/maps
+            if (mapName == "Desert")
                 return "Desert";
 
-            // Forest locations (https://stardewvalleywiki.com/Category:Forest_Locations)
-            if (mapName == "Forest" || mapName == "Woods" || mapName == "SecretWoods" ||
-                mapName == "WizardHouse" || mapName == "WitchSwamp" || mapName == "WitchHut" ||
-                mapName == "LeahHouse" || mapName == "BusStop" || mapName == "AnimalShop" ||
-                mapName == "SewagePipe" || mapName == "HatMouse")
+            // Forest locations - only include maps that exist in assets/maps
+            if (mapName == "Forest" || mapName == "Woods" || mapName == "BugLand" ||
+                mapName == "WizardHouse" || mapName == "LeahHouse" || mapName == "BusStop" || 
+                mapName == "AnimalShop")
                 return "Forest";
 
-            // Mountain locations (https://stardewvalleywiki.com/Category:Mountain_Locations)
-            if (mapName == "Mountain" || mapName == "Railroad" || mapName == "ScienceHouse" ||
-                mapName == "Tent" || mapName == "AdventureGuild" || mapName == "MineEntrance" ||
-                mapName.Contains("Mine") || mapName == "Carpenter" || mapName == "Quarry" ||
-                mapName == "Summit" || mapName == "Bath_Entry" || mapName == "BathHouse_Entry" ||
-                mapName == "BathHouse_MensLocker" || mapName == "BathHouse_WomensLocker" ||
-                mapName == "BathHouse_Pool" || mapName.Contains("Spa"))
+            // Mountain locations - only include maps that exist in assets/maps
+            if (mapName == "Mountain" || mapName == "Mine" || mapName == "AdventureGuild" ||
+                mapName == "BathHouse_Entry" || mapName == "BathHouse_MensLocker" || 
+                mapName == "BathHouse_WomensLocker" || mapName == "BathHouse_Pool")
                 return "Mountain";
 
-            // Island locations (https://stardewvalleywiki.com/Category:Island_Locations)
-            if (mapName.Contains("Island") || mapName.Contains("Volcano") || 
-                mapName.Contains("Ginger") || mapName.Contains("Fern") || mapName == "Caldera" ||
-                mapName == "QiNutRoom" || mapName == "IslandSouthEastCave" || 
-                mapName == "IslandShrine" || mapName == "IslandFarmHouse")
+            // Island locations - only include maps that exist in assets/maps
+            if (mapName == "IslandSouth" || mapName == "IslandWest" || mapName == "IslandNorth" ||
+                mapName == "IslandEast" || mapName == "Island_Hut" || mapName == "Island_FarmCave" ||
+                mapName == "Island_CaptainRoom" || mapName == "Island_Resort" || mapName == "Island_Secret" ||
+                mapName == "Island_Shrine" || mapName == "IslandFarmHouse" || mapName == "Caldera")
                 return "Island";
 
             // Indoor locations (catch-all for rooms and houses that don't fit elsewhere)
-            if ((mapName.Contains("Room") || mapName.Contains("House") || mapName.Contains("Cabin") ||
-                mapName.Contains("Interior") || mapName.Contains("Shop")) &&
+            if ((mapName.Contains("Room") || mapName.Contains("House") || mapName.Contains("Cave") ||
+                mapName.Contains("Shop")) &&
                 !mapName.Contains("Island") && !mapName.Contains("Beach") && 
                 !mapName.Contains("Desert") && !mapName.Contains("Mountain"))
                 return "Indoor";
@@ -403,27 +389,16 @@ namespace WarpMod.Utility
                     return "Blacksmith";
                 case "Hospital":
                     return "Harvey's Clinic";
-                case "SamHouse":
-                    return "Sam's House";
-                case "HaleyHouse":
-                    return "Haley & Emily's";
                 case "JojaMart":
                     return "JojaMart";
                 case "AbandonedJojaMart":
                     return "Old JojaMart";
-                case "JoshHouse":
-                    return "Evelyn & George's";
-                case "Trailer":
-                    return "Penny's Trailer";
-                case "Trailer_Big":
-                    return "Pam's House";
-                case "CommunityCenter":
-                    return "Community Center";
                 case "MovieTheater":
-                case "Theater":
                     return "Movie Theater";
                 case "ArchaeologyHouse":
                     return "Museum";
+                case "HarveyRoom":
+                    return "Harvey's Room";
                     
                 // Farm locations
                 case "Farm":
@@ -431,26 +406,11 @@ namespace WarpMod.Utility
                 case "FarmHouse":
                     return "Farmhouse";
                 case "Greenhouse":
-                case "Sunroom":
                     return "Greenhouse";
                 case "Cellar":
                     return "Farmhouse Cellar";
-                case "Coop":
-                    return "Coop";
-                case "Big Coop":
-                    return "Big Coop";
-                case "Deluxe Coop":
-                    return "Deluxe Coop";
-                case "Barn":
-                    return "Barn";
-                case "Big Barn":
-                    return "Big Barn";
-                case "Deluxe Barn":
-                    return "Deluxe Barn";
-                case "Shed":
-                    return "Shed";
-                case "Big Shed":
-                    return "Big Shed";
+                case "FarmCave":
+                    return "Farm Cave";
                     
                 // Beach locations
                 case "Beach":
@@ -459,68 +419,35 @@ namespace WarpMod.Utility
                     return "Elliott's Cabin";
                 case "FishShop":
                     return "Fish Shop";
-                case "NightMarket":
-                    return "Night Market";
                     
                 // Desert locations
                 case "Desert":
                     return "Calico Desert";
-                case "SkullCave":
-                    return "Skull Cavern";
-                case "SandyHouse":
-                case "SandyShop":
-                    return "Oasis";
-                case "CalicoCasino":
-                    return "Casino";
                     
                 // Forest locations
                 case "Forest":
                     return "Cindersap Forest";
                 case "Woods":
-                case "SecretWoods":
                     return "Secret Woods";
+                case "BugLand":
+                    return "Mutant Bug Lair";
                 case "WizardHouse":
                     return "Wizard's Tower";
-                case "WitchSwamp":
-                    return "Witch's Swamp";
-                case "WitchHut":
-                    return "Witch's Hut";
                 case "LeahHouse":
                     return "Leah's Cottage";
                 case "BusStop":
                     return "Bus Stop";
                 case "AnimalShop":
                     return "Marnie's Ranch";
-                case "SewagePipe":
-                    return "Sewer";
-                case "HatMouse":
-                    return "Hat Mouse";
                     
                 // Mountain locations
                 case "Mountain":
                     return "Mountain";
-                case "Railroad":
-                    return "Railroad";
-                case "ScienceHouse":
-                    return "Carpenter's Shop";
-                case "Tent":
-                    return "Linus's Tent";
                 case "AdventureGuild":
                     return "Adventurer's Guild";
-                case "MineEntrance":
-                    return "Mine Entrance";
-                case "Mine1":
-                    return "Mine Level 1";
-                case "Mine120":
-                    return "Mine Level 120";
-                case "Carpenter":
-                    return "Robin's Shop";
-                case "Quarry":
-                    return "Quarry";
-                case "Summit":
-                    return "Mountain Summit";
+                case "Mine":
+                    return "The Mines";
                 case "BathHouse_Entry":
-                case "Bath_Entry":
                     return "Bathhouse Entrance";
                 case "BathHouse_MensLocker":
                     return "Men's Locker Room";
@@ -540,20 +467,20 @@ namespace WarpMod.Utility
                     return "Ginger Island East";
                 case "IslandFarmHouse":
                     return "Island Farmhouse";
-                case "VolcanoDungeon0":
-                    return "Volcano Entrance";
-                case "VolcanoDungeon10":
-                    return "Volcano Level 10";
                 case "Caldera":
                     return "Volcano Caldera";
-                case "IslandHut":
-                    return "Leo's Hut";
-                case "IslandShrine":
+                case "Island_Hut":
+                    return "Island Hut";
+                case "Island_Shrine":
                     return "Island Shrine";
-                case "IslandSouthEastCave":
-                    return "Pirate Cove";
-                case "QiNutRoom":
-                    return "Qi's Walnut Room";
+                case "Island_Secret":
+                    return "Secret Island Area";
+                case "Island_Resort":
+                    return "Island Resort";
+                case "Island_FarmCave":
+                    return "Island Farm Cave";
+                case "Island_CaptainRoom":
+                    return "Captain's Room";
                     
                 // SVE/mod locations
                 case "Custom_AdventureGuild":

@@ -690,85 +690,49 @@ namespace WarpMod
         /// </summary>
         private void CreateWarpParticles()
         {
-            Vector2 playerPosition = Game1.player.Position;
-            float x = playerPosition.X;
-            float y = playerPosition.Y;
-            
-            // Create concentric circles of particles
-            for (int i = 0; i < 3; i++)
+            // Example particle effect: sparkles around the player
+            for (int i = 0; i < 20; i++)
             {
-                float radius = 32f * (i + 1);
-                int particleCount = 8 * (i + 1);
-                
-                for (int j = 0; j < particleCount; j++)
+                Game1.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite(
+                    textureName: "LooseSprites\\Cursors",
+                    sourceRect: new Rectangle(294, 185, 10, 10),
+                    animationInterval: 50f,
+                    animationLength: 10,
+                    numberOfLoops: 1,
+                    position: Game1.player.Position + new Vector2(Game1.random.Next(-32, 32), Game1.random.Next(-32, 32)),
+                    flicker: false,
+                    flipped: false
+                )
                 {
-                    float angle = (float)(j * (Math.PI * 2) / particleCount);
-                    float particleX = x + (float)Math.Cos(angle) * radius;
-                    float particleY = y + (float)Math.Sin(angle) * radius;
-                    
-                    Game1.currentLocation.temporarySprites.Add(new StardewValley.TemporaryAnimatedSprite(
-                        354, // Magic sparkle
-                        Game1.random.Next(25, 75), 
-                        6, 
-                        1, 
-                        new Vector2(particleX, particleY), 
-                        false, 
-                        Game1.random.NextDouble() < 0.5)
-                    {
-                        scale = Game1.random.Next(5, 15) / 10f,
-                        alpha = 0.75f,
-                        color = new Color(255, 255, 100) * 0.8f,
-                        layerDepth = 1f
-                    });
-                }
+                    scale = 2f,
+                    layerDepth = 1f,
+                    motion = new Vector2(Game1.random.Next(-1, 2), Game1.random.Next(-1, 2)),
+                    acceleration = new Vector2(0, 0.1f),
+                    delayBeforeAnimationStart = i * 50
+                });
             }
         }
-        
+
         /// <summary>
         /// Add arrival effects at the destination
         /// </summary>
         private void AddArrivalEffect()
         {
-            Vector2 playerPosition = Game1.player.Position;
-            
-            // Create a burst effect
-            Game1.currentLocation.temporarySprites.Add(new StardewValley.TemporaryAnimatedSprite(
-                5, 
-                playerPosition + new Vector2(0, -32),
-                Color.White, 
-                8, 
-                false, 
-                100f, 
-                0, 
-                -1, 
-                -1f, 
-                128)
+            // Example arrival effect: a burst of light
+            Game1.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite(
+                textureName: "LooseSprites\\Cursors",
+                sourceRect: new Rectangle(276, 198, 10, 10),
+                animationInterval: 70f,
+                animationLength: 8,
+                numberOfLoops: 1,
+                position: Game1.player.Position,
+                flicker: false,
+                flipped: false
+            )
             {
-                scale = 1.5f
+                scale = 4f,
+                layerDepth = 1f
             });
-            
-            // Create sparkles around player
-            for (int i = 0; i < 10; i++)
-            {
-                float angle = (float)(Game1.random.NextDouble() * Math.PI * 2);
-                float distance = Game1.random.Next(16, 48);
-                float particleX = playerPosition.X + (float)Math.Cos(angle) * distance;
-                float particleY = playerPosition.Y + (float)Math.Sin(angle) * distance;
-                
-                Game1.currentLocation.temporarySprites.Add(new StardewValley.TemporaryAnimatedSprite(
-                    10, 
-                    new Vector2(particleX, particleY),
-                    Color.White, 
-                    8, 
-                    Game1.random.NextDouble() < 0.5,
-                    Game1.random.Next(50, 150))
-                {
-                    scale = Game1.random.Next(5, 15) / 10f
-                });
-            }
-            
-            // Play arrival sound
-            Game1.playSound("dwop");
         }
     }
     

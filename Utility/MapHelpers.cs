@@ -139,6 +139,7 @@ namespace WarpMod.Utility
                         {
                             monitor.Log($"Found location directly: {location.Name}", LogLevel.Debug);
                             
+
                             // Get a reasonable position within this location (center or entrance)
                             Point position = GetDefaultPositionForLocation(location.Name);
                             return (location.Name, position);
@@ -272,24 +273,12 @@ namespace WarpMod.Utility
                     float townOffsetY = relativeY - 0.5f; // -0.5 to 0.5
                     
                     x = 40 + (int)(townOffsetX * 60); // Scale offset
-                    y = 64 + (int)(townOffsetY * 60);
+                    y = 64 + (int)(townOffsetY * 40);
                     break;
-                
+                    
                 case "Farm":
-                    // Farm's playable area is roughly centered
-                    x = (int)(relativeX * mapWidth * 0.6f) + (int)(mapWidth * 0.2f);
-                    y = (int)(relativeY * mapHeight * 0.6f) + (int)(mapHeight * 0.2f);
-                    break;
-                
-                case "Mountain":
-                    // Mountain area (scale based on layout)
-                    x = (int)(relativeX * 0.7f * mapWidth) + (int)(mapWidth * 0.15f);
-                    y = (int)(relativeY * 0.7f * mapHeight) + (int)(mapHeight * 0.15f);
-                    break;
-                
-                case "Forest":
-                    // Cindersap Forest has water at bottom and right edges
-                    x = (int)(relativeX * mapWidth * 0.7f) + (int)(mapWidth * 0.1f);
+                    // Farm is mostly open
+                    x = (int)(relativeX * mapWidth * 0.7f) + (int)(mapWidth * 0.15f);
                     y = (int)(relativeY * mapHeight * 0.7f) + (int)(mapHeight * 0.1f);
                     break;
                 
@@ -311,32 +300,21 @@ namespace WarpMod.Utility
                     y = (int)(relativeY * mapHeight * 0.7f) + (int)(mapHeight * 0.15f);
                     break;
                 
-                case "Mine":
-                    // Default to mine entrance
-                    x = 18;
-                    y = 12;
+                case "Mountain":
+                    // Mountain has lots of barriers
+                    x = (int)(relativeX * mapWidth * 0.6f) + (int)(mapWidth * 0.2f);
+                    y = (int)(relativeY * mapHeight * 0.6f) + (int)(mapHeight * 0.2f);
                     break;
                 
-                case "Railroad":
-                    // Railroad area
-                    x = (int)(relativeX * mapWidth * 0.7f) + (int)(mapWidth * 0.15f);
-                    y = (int)(relativeY * mapHeight * 0.7f) + (int)(mapHeight * 0.15f);
+                case "Forest":
+                    // Cindersap Forest has water at bottom and right edges
+                    x = (int)(relativeX * mapWidth * 0.7f) + (int)(mapWidth * 0.1f);
+                    y = (int)(relativeY * mapHeight * 0.5f) + (int)(mapHeight * 0.1f);
                     break;
                 
-                case "WizardHouse":
-                    // Default to entrance
-                    x = 4;
-                    y = 20;
-                    break;
-                
-                case "Woods":
-                    // Secret Woods
-                    x = 44;
-                    y = 13;
-                    break;
-                
+                // Default case for other locations and modded maps
                 default:
-                    // General case - aim for center area of map
+                    // For any other location, use a generic approach
                     x = (int)(relativeX * mapWidth * 0.6f) + (int)(mapWidth * 0.2f);
                     y = (int)(relativeY * mapHeight * 0.6f) + (int)(mapHeight * 0.2f);
                     break;
@@ -362,42 +340,40 @@ namespace WarpMod.Utility
             Point position;
             switch (locationName)
             {
+                // Maps that exist in assets/maps
                 case "Town": position = new Point(29, 67); break;
                 case "Farm": position = new Point(64, 15); break;
                 case "FarmHouse": position = new Point(9, 9); break;
                 case "Mountain": position = new Point(42, 25); break;
                 case "Forest": position = new Point(59, 15); break;
-                case "Beach": position = new Point(29, 36); break;
-                case "BusStop": position = new Point(15, 23); break;
+                case "Beach": position = new Point(39, 23); break;
+                case "BusStop": position = new Point(13, 23); break;
                 case "Desert": position = new Point(35, 43); break;
-                case "SkullCave": position = new Point(3, 4); break;
-                case "Mine": position = new Point(18, 12); break;
-                case "Sewer": position = new Point(31, 15); break;
-                case "WizardHouse": position = new Point(4, 20); break;
-                case "Woods": position = new Point(44, 13); break;
-                case "Railroad": position = new Point(35, 53); break;
-                case "CommunityCenter": position = new Point(32, 13); break;
-                case "ScienceHouse": position = new Point(7, 22); break;
-                case "SeedShop": position = new Point(8, 23); break;
-                case "JojaMart": position = new Point(13, 28); break;
-                case "Saloon": position = new Point(17, 18); break;
-                case "HaleyHouse": position = new Point(7, 9); break;
-                case "SamHouse": position = new Point(7, 9); break;
-                case "Blacksmith": position = new Point(7, 14); break;
-                case "Hospital": position = new Point(9, 17); break;
+                case "Mine": position = new Point(13, 10); break;
+                case "AdventureGuild": position = new Point(5, 12); break;
+                case "Blacksmith": position = new Point(10, 14); break;
+                case "ArchaeologyHouse": position = new Point(3, 8); break;
+                case "FishShop": position = new Point(6, 6); break;
                 case "ManorHouse": position = new Point(5, 6); break;
-                case "ElliottHouse": position = new Point(7, 9); break;
+                case "SeedShop": position = new Point(9, 20); break;
+                case "JojaMart": position = new Point(13, 17); break;
+                case "Hospital": position = new Point(11, 15); break;
+                case "ElliottHouse": position = new Point(6, 8); break;
+                case "HaleyHouse": position = new Point(7, 15); break;
+                case "AnimalShop": position = new Point(14, 14); break;
+                case "BathHouse_Entry": position = new Point(7, 8); break;
+                case "BathHouse_MensLocker": position = new Point(7, 10); break;
+                case "BathHouse_WomensLocker": position = new Point(17, 10); break;
+                case "BathHouse_Pool": position = new Point(12, 10); break;
+                case "JoshHouse": position = new Point(7, 15); break;
                 case "LeahHouse": position = new Point(7, 9); break;
-                case "AnimalShop": position = new Point(12, 16); break;
-                case "SebastianRoom": position = new Point(6, 4); break;
-                case "JoshHouse": position = new Point(7, 9); break;
-                case "Trailer": position = new Point(14, 6); break;
-                case "Trailer_Big": position = new Point(14, 6); break;
+                case "HarveyRoom": position = new Point(6, 9); break;
+                case "LeoTreeHouse": position = new Point(6, 7); break;
+                case "IslandFarmHouse": position = new Point(9, 9); break;
                 
-                // SVE locations
+                // SVE mod maps - keep references to these
                 case "Custom_Backwoods": position = new Point(30, 30); break;
                 case "Custom_AdventureGuild": position = new Point(6, 9); break;
-                case "Summit": position = new Point(15, 32); break;
                 case "Custom_DeepWoods": position = new Point(15, 15); break;
                 case "Custom_ForestWest": position = new Point(22, 18); break;
                 case "Custom_GramplesHouse": position = new Point(7, 9); break;
@@ -407,9 +383,9 @@ namespace WarpMod.Utility
                 case "Custom_AuroraVineyard": position = new Point(19, 31); break;
                 case "Custom_MorrisJoja": position = new Point(12, 14); break;
                 case "Custom_JenkinsHouse": position = new Point(8, 11); break;
-                case "Custom_SusanHouse": position = new Point(7, 15); break;
-                case "Custom_AndyHouse": position = new Point(6, 9); break;
-                case "Custom_MartinHouse": position = new Point(5, 9); break;
+                case "Custom_SusanHouse": position = new Point(4, 8); break;
+                case "Custom_AndyHouse": position = new Point(5, 8); break;
+                case "Custom_MartinHouse": position = new Point(9, 10); break;
                 case "Custom_VictorHouse": position = new Point(8, 10); break;
                 case "Custom_OliviaBedroom": position = new Point(7, 8); break;
                 case "Custom_ClaireRoom": position = new Point(5, 5); break;
@@ -428,7 +404,7 @@ namespace WarpMod.Utility
             ValidWarpPositionCache[locationName] = position;
             return position;
         }
-        
+
         /// <summary>
         /// For unknown/modded locations, try to find a valid position
         /// </summary>
@@ -719,7 +695,6 @@ namespace WarpMod.Utility
         private static string DetermineLocationFromMapPosition(float relativeX, float relativeY)
         {
             // Improved map regions that better match the actual Stardew Valley map layout
-            
             // Town area (center of map)
             if (relativeX > 0.4f && relativeX < 0.6f && relativeY > 0.4f && relativeY < 0.6f)
                 return "Town";
