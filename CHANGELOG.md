@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-03-29
+
+### Added
+- Enhanced UX following "Don't Make Me Think" principles
+- Clearer visual hierarchy and improved readability
+- Larger, more accessible buttons with proper text sizing
+- Improved instructions and visual cues for better usability
+- Enhanced search functionality with visual feedback
+- Better contrast and visual indicators for selected items
+- Added map instruction text: "Click on map to warp to that exact location"
+
+### Changed
+- Increased overall menu size for better readability (1200x700)
+- Made buttons larger to fit location names properly
+- Improved visual feedback for interactive elements
+- Enhanced sidebar with better tab navigation
+
+### Fixed
+- Fixed missing sounds for warping by letting the game handle sound effects
+- Fixed issue where text wouldn't fit in location buttons
+- Fixed search functionality in modded location tabs
+- Improved contrast for better readability
+
 ## [0.1.0] - 2025-03-23
 
 ### Added
@@ -26,4 +49,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - N/A (Initial Release)
 
-[0.1.0]: https://github.com/yourusername/stardew-warp-mod/releases/tag/v0.1.0
+[0.2.0]: https://github.com/yourusername/stardew-magic-atlas/releases/tag/v0.2.0
+[0.1.0]: https://github.com/yourusername/stardew-magic-atlas/releases/tag/v0.1.0

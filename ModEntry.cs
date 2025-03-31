@@ -26,7 +26,7 @@ namespace WarpMod
             this.config = helper.ReadConfig<ModConfig>();
             this.mapWarpEnabled = this.config.MapWarpEnabled;
             
-            // Initialize the map renderer for potential caching
+            // Initialize the map renderer
             this.mapRenderer = new MapRenderer(this.Monitor, helper);
 
             // Hook into events
@@ -36,6 +36,7 @@ namespace WarpMod
             helper.Events.GameLoop.ReturnedToTitle += this.OnReturnedToTitle;
             helper.Events.Display.WindowResized += this.OnWindowResized;
             helper.Events.GameLoop.DayStarted += this.OnDayStarted;
+            helper.Events.GameLoop.DayEnding += this.OnDayEnding;
 
             this.Monitor.Log("Magic Atlas mod initialized", LogLevel.Info);
         }
@@ -55,7 +56,7 @@ namespace WarpMod
             // Check if warp key is pressed (using config binding)
             if (this.config.WarpKey.JustPressed())
             {
-                // Instead of letting the game open its map, open our custom menu
+                // Open our custom menu
                 Game1.activeClickableMenu = new GridWarpMenu(this.Helper, this.Monitor, this.config);
                 Helper.Input.Suppress(e.Button);
             }
@@ -64,7 +65,7 @@ namespace WarpMod
         /// <summary>Called when a new day starts</summary>
         private void OnDayStarted(object sender, DayStartedEventArgs e)
         {
-            // Nothing needed here anymore
+            // Nothing needed here
         }
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
@@ -72,26 +73,26 @@ namespace WarpMod
             // Refresh settings when save is loaded
             this.mapWarpEnabled = this.config.MapWarpEnabled;
             
-            // Log available map files to verify our copied files are accessible
-            this.Monitor.Log("Checking for map files in assets/maps folder...", LogLevel.Info);
-            this.mapRenderer.LogAvailableMaps();
-            
-            // Pre-cache map thumbnails if enabled
-            if (this.config.EnableMapCaching)
-            {
-                this.Monitor.Log("Pre-caching map thumbnails for better performance", LogLevel.Debug);
-                
-                // Set custom map images path if configured
-                if (!string.IsNullOrEmpty(this.config.MapImagesPath) && Directory.Exists(this.config.MapImagesPath))
-                {
-                    this.Monitor.Log($"Using custom map images path: {this.config.MapImagesPath}", LogLevel.Info);
-                }
-                
-                mapRenderer.CacheThumbnailsForCommonLocations();
-            }
+            // Check if map files exist in assets folder
+            CheckMapAssets();
             
             // Check if SVE is installed and log
             CheckForSVE();
+        }
+        
+        /// <summary>Check if map assets exist in the assets folder</summary>
+        private void CheckMapAssets()
+        {
+            string mapFolder = Path.Combine(this.Helper.DirectoryPath, "assets", "maps");
+            if (Directory.Exists(mapFolder))
+            {
+                string[] mapFiles = Directory.GetFiles(mapFolder, "*.png");
+                this.Monitor.Log($"Found {mapFiles.Length} map files in assets/maps folder", LogLevel.Info);
+            }
+            else
+            {
+                this.Monitor.Log("Map assets folder not found. Maps may not display correctly.", LogLevel.Warn);
+            }
         }
         
         /// <summary>Check if SVE is installed and log appropriate message</summary>
@@ -114,23 +115,20 @@ namespace WarpMod
             }
         }
 
+        /// <summary>Called when the day is ending</summary>
+        private void OnDayEnding(object sender, DayEndingEventArgs e)
+        {
+            // Nothing needed here in simplified version
+        }
+
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
         {
-            // Clean up resources when returning to title
-            if (this.config.EnableMapCaching && mapRenderer != null)
-            {
-                this.Monitor.Log("Cleaning up cached map thumbnails", LogLevel.Debug);
-                mapRenderer.CleanupCache();
-            }
+            // Cleanup not needed in simplified version
         }
         
         private void OnWindowResized(object sender, WindowResizedEventArgs e)
         {
-            // Clear map cache when window is resized to prevent scaling issues
-            if (this.config.EnableMapCaching && mapRenderer != null)
-            {
-                mapRenderer.CleanupCache();
-            }
+            // Cleanup not needed in simplified version
         }
 
         private void OnGameLaunched(object sender, GameLaunchedEventArgs e)
@@ -171,15 +169,6 @@ namespace WarpMod
                 setValue: value => this.config.WarpKey = value
             );
             
-            // Add option for map caching
-            configMenu.AddBoolOption(
-                mod: this.ModManifest,
-                name: () => "Enable Map Caching",
-                tooltip: () => "Whether to cache map thumbnails for better performance.",
-                getValue: () => this.config.EnableMapCaching,
-                setValue: value => this.config.EnableMapCaching = value
-            );
-            
             // Add option for grouping modded locations
             configMenu.AddBoolOption(
                 mod: this.ModManifest,
@@ -187,15 +176,6 @@ namespace WarpMod
                 tooltip: () => "Whether to show modded locations in a separate category.",
                 getValue: () => this.config.GroupModdedLocations,
                 setValue: value => this.config.GroupModdedLocations = value
-            );
-            
-            // Add option for search functionality
-            configMenu.AddBoolOption(
-                mod: this.ModManifest,
-                name: () => "Enable Location Search",
-                tooltip: () => "Whether to enable search functionality for modded locations.",
-                getValue: () => this.config.EnableLocationSearch,
-                setValue: value => this.config.EnableLocationSearch = value
             );
             
             // Add option for warp effects

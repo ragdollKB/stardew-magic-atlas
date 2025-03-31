@@ -1,7 +1,7 @@
 {
   "Name": "Magic Atlas",
   "Author": "Ragdoll",
-  "Version": "0.1.0",
+  "Version": "0.2.0",
   "Description": "A magical map interface that lets you instantly warp to any location in Stardew Valley. Features an elegant grid-based menu with location previews and smart pathfinding.",
   "UniqueID": "Ragdoll.MagicAtlas",
   "EntryDll": "WarpMod.dll",

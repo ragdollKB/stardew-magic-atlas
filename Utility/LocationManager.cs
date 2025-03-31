@@ -3,21 +3,21 @@ using StardewModdingAPI;
 using StardewValley;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 
 namespace WarpMod.Utility
 {
     /// <summary>
-    /// Manages location data, categorization, and filtering for the warp menu
+    /// Manages location data and categorization for the warp menu
     /// </summary>
     public class LocationManager
     {
         private readonly IMonitor Monitor;
         private readonly Dictionary<string, List<string>> locationTabs = new();
         private readonly HashSet<string> blacklistedLocations = new();
+        private readonly Dictionary<string, Point> ValidWarpPositionCache = new Dictionary<string, Point>(); // Cache for default positions
         
-        // Add a new mod locations category
+        // The mod locations category name
         private const string MOD_LOCATIONS_CATEGORY = "Mod Locations";
         
         // Flag to control whether to show SVE locations
@@ -28,7 +28,7 @@ namespace WarpMod.Utility
             this.Monitor = monitor;
             this.showSVELocations = showSVELocations;
             InitializeCategories();
-            InitializeBlacklist(); // Add blacklist initialization
+            InitializeBlacklist();
             LoadLocations();
         }
 
@@ -37,16 +37,20 @@ namespace WarpMod.Utility
         /// </summary>
         private void InitializeCategories()
         {
-            // Initialize categories based on wiki structure
-            locationTabs["Town"] = new List<string>();
+            // Main categories focused on major areas
             locationTabs["Farm"] = new List<string>();
+            locationTabs["Town"] = new List<string>();
             locationTabs["Beach"] = new List<string>();
             locationTabs["Mountain"] = new List<string>();
             locationTabs["Forest"] = new List<string>();
             locationTabs["Desert"] = new List<string>();
             locationTabs["Island"] = new List<string>();
-            locationTabs["Indoor"] = new List<string>(); // For miscellaneous indoor locations
-            locationTabs[MOD_LOCATIONS_CATEGORY] = new List<string>(); // For modded locations
+            
+            // Add mod locations category if enabled
+            if (showSVELocations)
+            {
+                locationTabs[MOD_LOCATIONS_CATEGORY] = new List<string>();
+            }
         }
         
         /// <summary>
@@ -54,43 +58,12 @@ namespace WarpMod.Utility
         /// </summary>
         private void InitializeBlacklist()
         {
-            // Add locations that should be excluded (temporary maps, unaccessible areas, etc.)
+            // Add locations that should be excluded
             string[] excludedMaps = new[]
             {
-                "Backwoods", // Not a valid warp destination
-                "Temp", // Temporary maps
-                "Cutscene", // Cutscene maps
-                "Credits", // Credits scene
-                "Intro", // Intro scene
-                "Mine", // Mines are handled specially (except Mine entrance)
-                "UndergroundMine", // Mining levels (except level 120)
-                "VolcanoDungeon", // Volcano levels (except entrance)
-                "Submarine", // Special event location
-                "Trailer_Big_Temp", // Temporary trailer map
-                "BoatTunnel", // Special boat tunnel area
-                "FishShopCutscene", // Cutscene location
-                "Sewer_Temp", // Temporary sewer map
-                "Temp_", // Any temp location
-                "_Ambient", // Ambient maps
-                "ElevatorShaft", // Elevator shaft
-                "fishingGame", // Fishing mini-game
-                "festivalSpot", // Festival spot
-                "Pool", // Generic pool map
-                "MermaidHouse", // Mermaid house (special access)
-                "AbandonedBuilding", // Abandoned building (not meant for warping)
-                "QiCave", // Qi's cave (special access)
-                "CaptainRoom", // Captain's room
-                "RailroadTemporary", // Temporary railroad map
-                "event", // Event maps
-                "_Savage", // Savage maps
-                "Tutorial", // Tutorial maps
-                "BeachNightMarket", // Beach Night Market - requested to remove
-                "Cellar2", // Cellar 2 - requested to remove
-                "Cellar3", // Cellar 3 - requested to remove 
-                "Cellar4", // Cellar 4 - requested to remove
-                "FarmHouse", // Farmhouse - requested to remove
-                "QiNutRoom", // Qi Nut Room - requested to remove
-                "Summit" // Summit - requested to remove
+                "Backwoods", "Temp", "Cutscene", "Credits", "Intro", "Mine",
+                "UndergroundMine", "VolcanoDungeon", "Submarine", "BoatTunnel", 
+                "Temp_", "_Ambient", "fishingGame", "festivalSpot"
             };
             
             foreach (var map in excludedMaps)
@@ -104,10 +77,6 @@ namespace WarpMod.Utility
         /// </summary>
         private void LoadLocations()
         {
-            // Track how many vanilla and modded locations we load
-            int vanillaLocationsCount = 0;
-            int moddedLocationsCount = 0;
-
             // Load locations directly from the game's location list
             foreach (var location in Game1.locations)
             {
@@ -118,20 +87,13 @@ namespace WarpMod.Utility
                 // Skip blacklisted locations
                 if (IsBlacklisted(location.Name))
                     continue;
-                    
-                // Skip inaccessible locations
-                if (!IsLocationAccessible(location))
-                    continue;
-                    
+                
                 // Categorize the location
                 string category = DetermineMapCategory(location.Name);
                 
-                // Track if this is a modded location
-                bool isModded = IsModdedLocation(location.Name);
-                if (isModded)
+                // Add location to appropriate category
+                if (IsModdedLocation(location.Name) && showSVELocations)
                 {
-                    moddedLocationsCount++;
-                    // For modded locations, add to the mod locations category
                     if (!locationTabs[MOD_LOCATIONS_CATEGORY].Contains(location.Name))
                     {
                         locationTabs[MOD_LOCATIONS_CATEGORY].Add(location.Name);
@@ -139,95 +101,36 @@ namespace WarpMod.Utility
                 }
                 else
                 {
-                    vanillaLocationsCount++;
-                }
-                
-                // Also add to the standard category if it's not already present
-                if (!locationTabs[category].Contains(location.Name) && !isModded)
-                {
-                    locationTabs[category].Add(location.Name);
+                    // Handle specific location reassignments
+                    if (location.Name == "BusStop" && !locationTabs["Farm"].Contains(location.Name))
+                    {
+                        locationTabs["Farm"].Add(location.Name);
+                    }
+                    else if (!locationTabs[category].Contains(location.Name))
+                    {
+                        locationTabs[category].Add(location.Name);
+                    }
                 }
             }
-
-            // Add special handling for SVE locations if installed
-            AddSVELocationsIfAvailable();
-
+            
             // Sort locations within each category
             foreach (var category in locationTabs.Keys.ToList())
             {
                 locationTabs[category].Sort();
             }
 
-            // Log the count of locations in each category
-            foreach (var category in locationTabs.Keys)
+            // Make sure Farm is first in Farm category
+            if (locationTabs["Farm"].Contains("Farm"))
             {
-                if (locationTabs[category].Count > 0)
-                {
-                    Monitor.Log($"Loaded {locationTabs[category].Count} locations in category: {category}", LogLevel.Debug);
-                }
+                locationTabs["Farm"].Remove("Farm");
+                locationTabs["Farm"].Insert(0, "Farm");
             }
-            
-            Monitor.Log($"Loaded a total of {vanillaLocationsCount} vanilla locations and {moddedLocationsCount} modded locations", LogLevel.Info);
-        }
-        
-        /// <summary>
-        /// Add Stardew Valley Expanded locations if the mod is installed
-        /// </summary>
-        private void AddSVELocationsIfAvailable()
-        {
-            // Skip if SVE locations are disabled in config
-            if (!showSVELocations)
+
+            // Make sure Forest is first in Forest category
+            if (locationTabs["Forest"].Contains("Forest"))
             {
-                Monitor.Log("SVE location support is disabled in config", LogLevel.Debug);
-                return;
-            }
-            
-            // Check if SVE locations exist by looking for common SVE locations
-            bool sveInstalled = Game1.getLocationFromName("Custom_Backwoods") != null || 
-                               Game1.getLocationFromName("Custom_GramplesHouse") != null ||
-                               Game1.getLocationFromName("Custom_ForestWest") != null;
-            
-            if (!sveInstalled)
-                return;
-                
-            Monitor.Log("Stardew Valley Expanded detected, adding special handling for SVE locations", LogLevel.Info);
-            
-            // Add some key SVE locations that might not be in the loaded locations list
-            string[] sveLocations = new[] {
-                "Custom_Backwoods", 
-                "Custom_ForestWest",
-                "Custom_GramplesHouse",
-                "Custom_AdventureGuild",
-                "Custom_FairhavenFarm",
-                "Custom_SophiaFarm",
-                "Custom_BlueMoonVineyard",
-                "Custom_MorrisJoja",
-                "Custom_JenkinsHouse",
-                "Custom_SusanHouse",
-                "Custom_AndyHouse",
-                "Custom_MartinHouse",
-                "Custom_VictorHouse",
-                "Custom_OliviaBedroom",
-                "Custom_ClaireRoom",
-                "Custom_MorrisApartment",
-                "Custom_AuroraVineyard",
-                "Custom_IridiumQuarry",
-                "Custom_AdventurerCabin",
-                "Custom_TreasureCave"
-            };
-            
-            foreach (var locationName in sveLocations)
-            {
-                var location = Game1.getLocationFromName(locationName);
-                if (location != null && location.map != null && !IsBlacklisted(locationName))
-                {
-                    // Add to mod locations category if not already present
-                    if (!locationTabs[MOD_LOCATIONS_CATEGORY].Contains(locationName))
-                    {
-                        locationTabs[MOD_LOCATIONS_CATEGORY].Add(locationName);
-                        Monitor.Log($"Added SVE location: {locationName}", LogLevel.Debug);
-                    }
-                }
+                locationTabs["Forest"].Remove("Forest");
+                locationTabs["Forest"].Insert(0, "Forest");
             }
         }
         
@@ -251,69 +154,18 @@ namespace WarpMod.Utility
         /// </summary>
         private bool IsModdedLocation(string locationName)
         {
-            // Check for common mod location prefixes/patterns
-            string[] modLocationPatterns = {
-                "Custom_", "SVE_", "DIGUS.", "JA_", "CP_", 
-                "Summit", "GingerIsland", "Ridgeside", "East Scarp", 
-                "Zuzu", "BackwoodsMod", "BusStopExtension"
-            };
+            // Check for common mod location prefixes
+            string[] modLocationPatterns = { "Custom_", "SVE_", "DIGUS." };
             
             foreach (var pattern in modLocationPatterns)
             {
-                if (locationName.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                if (locationName.Contains(pattern))
                 {
                     return true;
                 }
             }
             
-            // Check if this is a vanilla location (this approach is more future-proof)
-            string[] vanillaLocationPrefixes = {
-                "Beach", "BusStop", "Desert", "Farm", "Forest", "Mountain", "Town", 
-                "Mine", "Island", "Sewer", "WizardHouse", "Woods"
-            };
-            
-            // If it matches a vanilla pattern, it's probably not modded
-            foreach (var pattern in vanillaLocationPrefixes) 
-            {
-                if (locationName.Equals(pattern, StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-            }
-            
-            // If the name is very long or complex, it's likely a modded location
-            if (locationName.Length > 20 || locationName.Count(c => c == '_') > 1)
-            {
-                return true;
-            }
-            
-            // Default to false (assume vanilla)
             return false;
-        }
-        
-        /// <summary>
-        /// Check if a location is accessible for warping
-        /// </summary>
-        private bool IsLocationAccessible(GameLocation location)
-        {
-            // Skip null locations and those without maps
-            if (location == null || location.map == null)
-                return false;
-                
-            // Skip temporary or special locations
-            if (location.Name.Contains("Temp") || 
-                location.Name.Contains("Trailer_") || // Skip trailer variations
-                (location.Name.StartsWith("UndergroundMine") && !location.Name.EndsWith("120")) || // Only allow mine level 120
-                location.Name.StartsWith("VolcanoDungeon"))
-            {
-                return false;
-            }
-            
-            // Skip maps that require special conditions or are not meant to be warped to
-            if (location.IsOutdoors && location.map.Layers[0].LayerWidth < 5)
-                return false;
-                
-            return true;
         }
 
         /// <summary>
@@ -321,54 +173,44 @@ namespace WarpMod.Utility
         /// </summary>
         private string DetermineMapCategory(string mapName)
         {
-            // Town locations - only include maps that exist in assets/maps
-            if (mapName == "Town" || mapName == "SeedShop" || mapName == "Saloon" ||
-                mapName == "ManorHouse" || mapName == "Blacksmith" || mapName == "Hospital" ||
-                mapName == "JojaMart" || mapName == "AbandonedJojaMart" || mapName == "ArchaeologyHouse" ||
-                mapName == "HarveyRoom" || mapName == "MovieTheater")
+            // Town locations
+            if (mapName.Contains("Town") || mapName.Contains("Shop") || 
+                mapName.Contains("Saloon") || mapName == "ManorHouse" || 
+                mapName == "Blacksmith" || mapName == "Hospital" ||
+                mapName.Contains("JojaMart"))
                 return "Town";
 
-            // Farm locations - only include maps that exist in assets/maps
-            if (mapName == "Farm" || mapName == "FarmHouse" ||
-                mapName == "Greenhouse" || mapName == "Cellar" || mapName == "FarmCave")
+            // Farm locations
+            if (mapName.Contains("Farm") || mapName == "Greenhouse" || 
+                mapName == "Cellar")
                 return "Farm";
 
-            // Beach locations - only include maps that exist in assets/maps
-            if (mapName == "Beach" || mapName == "ElliottHouse" || mapName == "FishShop")
+            // Beach locations
+            if (mapName.Contains("Beach") || mapName == "ElliottHouse" || 
+                mapName == "FishShop")
                 return "Beach";
 
-            // Desert locations - only include maps that exist in assets/maps
-            if (mapName == "Desert")
+            // Desert locations
+            if (mapName.Contains("Desert") || mapName == "Club")
                 return "Desert";
 
-            // Forest locations - only include maps that exist in assets/maps
-            if (mapName == "Forest" || mapName == "Woods" || mapName == "BugLand" ||
-                mapName == "WizardHouse" || mapName == "LeahHouse" || mapName == "BusStop" || 
+            // Forest locations
+            if (mapName.Contains("Forest") || mapName == "Woods" || 
+                mapName == "WizardHouse" || mapName == "LeahHouse" || 
                 mapName == "AnimalShop")
                 return "Forest";
 
-            // Mountain locations - only include maps that exist in assets/maps
-            if (mapName == "Mountain" || mapName == "Mine" || mapName == "AdventureGuild" ||
-                mapName == "BathHouse_Entry" || mapName == "BathHouse_MensLocker" || 
-                mapName == "BathHouse_WomensLocker" || mapName == "BathHouse_Pool")
+            // Mountain locations
+            if (mapName.Contains("Mountain") || mapName == "Mine" || 
+                mapName.Contains("Guild") || mapName.Contains("BathHouse"))
                 return "Mountain";
 
-            // Island locations - only include maps that exist in assets/maps
-            if (mapName == "IslandSouth" || mapName == "IslandWest" || mapName == "IslandNorth" ||
-                mapName == "IslandEast" || mapName == "Island_Hut" || mapName == "Island_FarmCave" ||
-                mapName == "Island_CaptainRoom" || mapName == "Island_Resort" || mapName == "Island_Secret" ||
-                mapName == "Island_Shrine" || mapName == "IslandFarmHouse" || mapName == "Caldera")
+            // Island locations
+            if (mapName.Contains("Island") || mapName == "Caldera")
                 return "Island";
 
-            // Indoor locations (catch-all for rooms and houses that don't fit elsewhere)
-            if ((mapName.Contains("Room") || mapName.Contains("House") || mapName.Contains("Cave") ||
-                mapName.Contains("Shop")) &&
-                !mapName.Contains("Island") && !mapName.Contains("Beach") && 
-                !mapName.Contains("Desert") && !mapName.Contains("Mountain"))
-                return "Indoor";
-
-            // Check if this appears to be a modded location
-            if (IsModdedLocation(mapName))
+            // Check if this is a modded location
+            if (IsModdedLocation(mapName) && showSVELocations)
                 return MOD_LOCATIONS_CATEGORY;
 
             // Default to Town if no match found
@@ -380,160 +222,114 @@ namespace WarpMod.Utility
         /// </summary>
         public string GetDisplayName(string locationName)
         {
-            // Special cases for location names based on wiki categories
-            switch (locationName)
+            // Use a dictionary for cleaner mapping and easier updates
+            var nameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                // Town locations
-                case "Town":
-                    return "Pelican Town";
-                case "SeedShop":
-                    return "Pierre's Shop";
-                case "Saloon":
-                    return "Stardrop Saloon";
-                case "ManorHouse":
-                    return "Mayor's House";
-                case "Blacksmith":
-                    return "Blacksmith";
-                case "Hospital":
-                    return "Harvey's Clinic";
-                case "JojaMart":
-                    return "JojaMart";
-                case "AbandonedJojaMart":
-                    return "Old JojaMart";
-                case "MovieTheater":
-                    return "Movie Theater";
-                case "ArchaeologyHouse":
-                    return "Museum";
-                case "HarveyRoom":
-                    return "Harvey's Room";
-                    
-                // Farm locations
-                case "Farm":
-                    return "Farm";
-                case "FarmHouse":
-                    return "Farmhouse";
-                case "Greenhouse":
-                    return "Greenhouse";
-                case "Cellar":
-                    return "Farmhouse Cellar";
-                case "FarmCave":
-                    return "Farm Cave";
-                    
-                // Beach locations
-                case "Beach":
-                    return "Beach";
-                case "ElliottHouse":
-                    return "Elliott's Cabin";
-                case "FishShop":
-                    return "Fish Shop";
-                    
-                // Desert locations
-                case "Desert":
-                    return "Calico Desert";
-                    
-                // Forest locations
-                case "Forest":
-                    return "Cindersap Forest";
-                case "Woods":
-                    return "Secret Woods";
-                case "BugLand":
-                    return "Mutant Bug Lair";
-                case "WizardHouse":
-                    return "Wizard's Tower";
-                case "LeahHouse":
-                    return "Leah's Cottage";
-                case "BusStop":
-                    return "Bus Stop";
-                case "AnimalShop":
-                    return "Marnie's Ranch";
-                    
-                // Mountain locations
-                case "Mountain":
-                    return "Mountain";
-                case "AdventureGuild":
-                    return "Adventurer's Guild";
-                case "Mine":
-                    return "The Mines";
-                case "BathHouse_Entry":
-                    return "Bathhouse Entrance";
-                case "BathHouse_MensLocker":
-                    return "Men's Locker Room";
-                case "BathHouse_WomensLocker":
-                    return "Women's Locker Room";
-                case "BathHouse_Pool":
-                    return "Bath Pool";
-                    
-                // Island locations
-                case "IslandSouth":
-                    return "Ginger Island South";
-                case "IslandWest":
-                    return "Ginger Island West";
-                case "IslandNorth":
-                    return "Ginger Island North";
-                case "IslandEast":
-                    return "Ginger Island East";
-                case "IslandFarmHouse":
-                    return "Island Farmhouse";
-                case "Caldera":
-                    return "Volcano Caldera";
-                case "Island_Hut":
-                    return "Island Hut";
-                case "Island_Shrine":
-                    return "Island Shrine";
-                case "Island_Secret":
-                    return "Secret Island Area";
-                case "Island_Resort":
-                    return "Island Resort";
-                case "Island_FarmCave":
-                    return "Island Farm Cave";
-                case "Island_CaptainRoom":
-                    return "Captain's Room";
-                    
-                // SVE/mod locations
-                case "Custom_AdventureGuild":
-                    return "SVE Guild";
-                case "Custom_Backwoods":
-                    return "SVE Backwoods";
-                case var s when s.StartsWith("Custom_"):
-                    return s.Replace("Custom_", "").Replace("_", " ");
-                case var s when s.StartsWith("SVE_"):
-                    return s.Replace("SVE_", "").Replace("_", " ");
-            }
-            
-            // Handle modded locations by cleaning up their names
-            if (IsModdedLocation(locationName))
+                // Town Locations (Referencing https://stardewvalleywiki.com/Category:Town_Locations)
+                { "Town", "Pelican Town" },
+                { "SeedShop", "Pierre's General Store" }, // Wiki name
+                { "Saloon", "Stardrop Saloon" },
+                { "ManorHouse", "Mayor's Manor" }, // Wiki name
+                { "Blacksmith", "Blacksmith" },
+                { "Hospital", "Harvey's Clinic" }, // Wiki name
+                { "JojaMart", "JojaMart" },
+                { "AbandonedJojaMart", "Abandoned JojaMart" },
+                { "MovieTheater", "Movie Theater" },
+                { "ArchaeologyHouse", "Museum" }, // Wiki name
+                { "HarveyRoom", "Harvey's Room" },
+                { "HaleyHouse", "2 Willow Lane" }, // Wiki name (Haley/Emily's House)
+                { "SamHouse", "1 Willow Lane" }, // Wiki name (Jodi/Kent/Sam/Vincent's House)
+                { "JoshHouse", "1 River Road" }, // Wiki name (George/Evelyn/Alex's House)
+                { "CommunityCenter", "Community Center" },
+                { "Sewer", "The Sewers" }, // Wiki name
+
+                // Farm Locations
+                { "Farm", "Farm" },
+                { "FarmHouse", "Farmhouse" },
+                { "Greenhouse", "Greenhouse" },
+                { "Cellar", "Cellar" }, // Often referred to as Farmhouse Cellar
+                { "FarmCave", "Farm Cave" },
+
+                // Beach Locations
+                { "Beach", "The Beach" }, // Wiki name
+                { "ElliottHouse", "Elliott's Cabin" }, // Wiki name
+                { "FishShop", "Willy's Fish Shop" }, // Wiki name
+
+                // Desert Locations
+                { "Desert", "Calico Desert" }, // Wiki name
+                { "Club", "Casino" }, // Wiki name (located in Oasis)
+                { "SkullCave", "Skull Cavern" }, // Wiki name
+
+                // Forest Locations
+                { "Forest", "Cindersap Forest" }, // Wiki name
+                { "Woods", "Secret Woods" }, // Wiki name
+                { "WizardHouse", "Wizard's Tower" }, // Wiki name
+                { "LeahHouse", "Leah's Cottage" }, // Wiki name
+                { "AnimalShop", "Marnie's Ranch" }, // Wiki name
+                { "HatMouseHouse", "Abandoned House" }, // Wiki name (Hat Mouse)
+                { "BugLand", "Mutant Bug Lair" }, // Wiki name
+
+                // Mountain Locations
+                { "Mountain", "The Mountain" }, // Wiki name
+                { "Mine", "The Mines" }, // Wiki name (Entrance)
+                { "AdventureGuild", "Adventurer's Guild" }, // Wiki name
+                { "BathHouse_Entry", "Spa Entrance" }, // More descriptive
+                { "BathHouse_MensLocker", "Spa Men's Locker" },
+                { "BathHouse_WomensLocker", "Spa Women's Locker" },
+                { "BathHouse_Pool", "Spa Pool" },
+                { "Railroad", "Railroad" },
+                { "Tent", "Linus' Tent" }, // Wiki name
+                { "ScienceHouse", "Robin's Carpenter Shop" }, // Wiki name (Robin/Demetrius/Maru/Sebastian's House)
+                { "SebastianRoom", "Sebastian's Room" },
+
+                // Island Locations
+                { "IslandSouth", "Ginger Island South" },
+                { "IslandWest", "Ginger Island West" },
+                { "IslandNorth", "Ginger Island North" },
+                { "IslandEast", "Ginger Island East" },
+                { "IslandFarmHouse", "Island Farmhouse" },
+                { "Caldera", "Volcano Caldera" },
+                { "Island_Hut", "Leo's Hut" }, // Wiki name
+                { "Island_Shrine", "Island Shrine" }, // Generic, could be improved if specific shrine known
+                { "Island_Resort", "Island Resort" },
+                { "Island_FieldOffice", "Island Field Office" }, // Wiki name
+                { "VolcanoDungeon0", "Volcano Entrance" }, // Level 0
+
+                // Modded Locations (Example Handling)
+                { "Custom_AdventureGuild", "SVE Guild" },
+                { "Custom_Backwoods", "SVE Backwoods" },
+                { "Custom_ForestWest", "SVE West Forest" }
+                // Add more specific SVE or other mod mappings here if needed
+            };
+
+            // Try to find a specific mapping first
+            if (nameMap.TryGetValue(locationName, out string displayName))
             {
-                // Remove common modded location prefixes
-                string cleanName = locationName
-                    .Replace("Custom_", "")
-                    .Replace("SVE_", "")
-                    .Replace("DIGUS.", "")
-                    .Replace("JA_", "")
-                    .Replace("CP_", "");
-                
-                // Replace underscores with spaces
-                cleanName = cleanName.Replace("_", " ");
-                
-                // If there's a period, take only what's after it (often used in modded locations)
-                if (cleanName.Contains("."))
-                {
-                    cleanName = cleanName.Substring(cleanName.LastIndexOf('.') + 1);
-                }
-                
-                return cleanName;
+                return displayName;
             }
-            
-            // Default split on capital letters and clean up
-            return string.Join(" ", System.Text.RegularExpressions.Regex.Split(locationName, @"(?<!^)(?=[A-Z]|\d)"))
+
+            // Handle common prefixes for modded locations
+            if (locationName.StartsWith("Custom_", StringComparison.OrdinalIgnoreCase))
+            {
+                // Clean up "Custom_" prefix and replace underscores
+                return locationName.Substring("Custom_".Length).Replace("_", " ");
+            }
+            if (locationName.StartsWith("SVE_", StringComparison.OrdinalIgnoreCase))
+            {
+                return locationName.Substring("SVE_".Length).Replace("_", " ");
+            }
+
+            // Default case: split PascalCase/camelCase and replace underscores
+            string defaultName = string.Join(" ", System.Text.RegularExpressions.Regex.Split(locationName, @"(?<!^)(?=[A-Z]|\d)"))
                 .Replace("_", " ");
+            // Capitalize first letter of each word for better readability
+            return System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(defaultName.ToLower());
         }
 
-        /// <summary>
-        /// Get all available location categories
-        /// </summary>
+        /// <summary>Get all available location categories</summary>
         public IEnumerable<string> GetCategories()
         {
-            // Only return categories that have locations in them
+            // Only return categories that have locations
             return locationTabs.Keys.Where(k => locationTabs[k].Count > 0);
         }
 
@@ -552,48 +348,17 @@ namespace WarpMod.Utility
         /// <summary>
         /// Load a specific location by name
         /// </summary>
-        /// <param name="locationName">The name of the location to load</param>
-        /// <returns>The GameLocation object if found, null otherwise</returns>
         public GameLocation LoadLocation(string locationName)
         {
             if (string.IsNullOrEmpty(locationName))
                 return null;
                 
-            // Try to get the location from the game
-            GameLocation location = Game1.getLocationFromName(locationName);
-            
-            // Log if location couldn't be found
-            if (location == null)
-            {
-                Monitor.Log($"Could not find location: {locationName}", LogLevel.Debug);
-            }
-            
-            return location;
+            return Game1.getLocationFromName(locationName);
         }
 
         /// <summary>
-        /// Update the locations in a category with a new list of locations
+        /// Warps the player to the specified location, finding a valid tile if necessary.
         /// </summary>
-        public void UpdateCategoryLocations(string category, List<string> locations)
-        {
-            if (locationTabs.ContainsKey(category))
-            {
-                locationTabs[category] = new List<string>(locations);
-                Monitor.Log($"Updated {locations.Count} locations in category: {category}", LogLevel.Debug);
-            }
-            else
-            {
-                Monitor.Log($"Cannot update unknown category: {category}", LogLevel.Warn);
-            }
-        }
-
-        /// <summary>
-        /// Warps the player to the specified location
-        /// </summary>
-        /// <param name="locationName">The name of the location to warp to</param>
-        /// <param name="tileX">Optional X tile coordinate within the location</param>
-        /// <param name="tileY">Optional Y tile coordinate within the location</param>
-        /// <returns>True if warp was successful, false otherwise</returns>
         public bool WarpToLocation(string locationName, int? tileX = null, int? tileY = null)
         {
             // Validate location name
@@ -613,28 +378,40 @@ namespace WarpMod.Utility
             
             try
             {
-                // If no specific coordinates are provided, use default warp point
-                if (!tileX.HasValue || !tileY.HasValue)
+                Point targetTile;
+
+                // If specific coordinates are provided, validate them
+                if (tileX.HasValue && tileY.HasValue)
                 {
-                    // Use default warp point or center of map
-                    tileX = targetLocation.warps.Count > 0 
-                        ? targetLocation.warps[0].X  // Use first warp point
-                        : targetLocation.map.Layers[0].LayerWidth / 2;  // Use center of map
-                        
-                    tileY = targetLocation.warps.Count > 0 
-                        ? targetLocation.warps[0].Y 
-                        : targetLocation.map.Layers[0].LayerHeight / 2;
+                    if (IsTileValid(targetLocation, tileX.Value, tileY.Value))
+                    {
+                        targetTile = new Point(tileX.Value, tileY.Value);
+                    }
+                    else
+                    {
+                        // If the target tile is invalid, find a nearby valid one
+                        Point? nearbyValidTile = FindNearbyValidTile(targetLocation, tileX.Value, tileY.Value);
+                        if (nearbyValidTile.HasValue)
+                        {
+                            targetTile = nearbyValidTile.Value;
+                            Monitor.Log($"Original warp tile ({tileX.Value}, {tileY.Value}) invalid. Warping to nearby valid tile ({targetTile.X}, {targetTile.Y}) instead.", LogLevel.Debug);
+                        }
+                        else
+                        {
+                            // If no nearby valid tile, use the default
+                            targetTile = GetDefaultPositionForLocation(locationName); 
+                            Monitor.Log($"Original warp tile ({tileX.Value}, {tileY.Value}) and nearby tiles invalid. Warping to default position ({targetTile.X}, {targetTile.Y}).", LogLevel.Warn);
+                        }
+                    }
+                }
+                else
+                {
+                    // If no coordinates provided, use the default warp point for the location
+                    targetTile = GetDefaultPositionForLocation(locationName); 
                 }
                 
-                // Ensure the tile is valid (not outside the map or in a wall)
-                tileX = Math.Max(0, Math.Min(tileX.Value, targetLocation.map.Layers[0].LayerWidth - 1));
-                tileY = Math.Max(0, Math.Min(tileY.Value, targetLocation.map.Layers[0].LayerHeight - 1));
-                
-                // Perform the warp - let the game handle its own sound effects
-                Game1.warpFarmer(locationName, tileX.Value, tileY.Value, Game1.player.FacingDirection, true);
-                
-                // Log success
-                Monitor.Log($"Warped to {locationName} at tile ({tileX}, {tileY})", LogLevel.Debug);
+                // Perform the warp
+                Game1.warpFarmer(locationName, targetTile.X, targetTile.Y, Game1.player.FacingDirection, false); // Set isStructure to false for outdoor locations
                 return true;
             }
             catch (Exception ex)
@@ -642,6 +419,198 @@ namespace WarpMod.Utility
                 Monitor.Log($"Error warping to {locationName}: {ex.Message}", LogLevel.Error);
                 return false;
             }
+        }
+
+        /// <summary>Get a default position for a location (typically entrances or center).</summary>
+        public Point GetDefaultPositionForLocation(string locationName)
+        {
+            // Check cache first to avoid recalculating 
+            if (ValidWarpPositionCache.TryGetValue(locationName, out Point cachedPosition))
+            {
+                return cachedPosition;
+            }
+            
+            GameLocation location = LoadLocation(locationName);
+            Point position;
+
+            if (location != null)
+            {
+                // Prioritize warp points within the location
+                if (location.warps.Any())
+                {
+                    // Try to find a valid warp target point
+                    foreach (var warp in location.warps.OrderBy(w => w.TargetX)) // Prioritize lower X warps (often main entrances)
+                    {
+                        if (IsTileValid(location, warp.TargetX, warp.TargetY))
+                        {
+                            position = new Point(warp.TargetX, warp.TargetY);
+                            ValidWarpPositionCache[locationName] = position;
+                            return position;
+                        }
+                    }
+                }
+
+                // If no valid warp found, try finding a valid position near the center
+                position = FindValidPositionForLocation(locationName);
+            }
+            else
+            {
+                // Fallback if location couldn't be loaded (should not happen often)
+                position = new Point(20, 20); 
+                Monitor.Log($"Could not load location {locationName} to find default warp point. Using fallback (20, 20).", LogLevel.Warn);
+            }
+            
+            ValidWarpPositionCache[locationName] = position;
+            return position;
+        }
+
+        /// <summary>For unknown/modded locations, try to find a valid position near the center.</summary>
+        private Point FindValidPositionForLocation(string locationName)
+        {
+            GameLocation location = LoadLocation(locationName);
+            if (location == null || location.map == null || location.map.Layers.Count == 0)
+            {
+                return new Point(20, 20);  // Fallback default
+            }
+            
+            int midX = location.map.Layers[0].LayerWidth / 2;
+            int midY = location.map.Layers[0].LayerHeight / 2;
+            
+            // Try center first
+            if (IsTileValid(location, midX, midY))
+            {
+                return new Point(midX, midY);
+            }
+            // Search outward in a spiral from the center
+            Point? nearby = FindNearbyValidTile(location, midX, midY, 25); // Increased search radius
+            if (nearby.HasValue)
+            {
+                return nearby.Value;
+            }
+
+            // Last resort - check common entry points if spiral search fails
+            int[] standardCoords = { 10, 15, 5, 20, 25 };
+            foreach (int y in standardCoords)
+            {
+                foreach (int x in standardCoords)
+                {
+                    if (IsTileValid(location, x, y))
+                    {
+                        return new Point(x, y);
+                    }
+                }
+            }
+            
+            // Ultimate fallback - this might not be valid but we've tried everything else
+            Monitor.Log($"Could not find any valid warp tile for {locationName}. Using fallback (20, 20).", LogLevel.Warn);
+            return new Point(20, 20);
+        }
+        
+        /// <summary>Checks if a tile is valid to warp to.</summary>
+        public bool IsTileValid(GameLocation location, int tileX, int tileY)
+        {
+            try
+            {
+                // Check if tile is within bounds
+                if (location == null || location.map == null || location.map.Layers.Count == 0)
+                    return false;
+
+                if (tileX < 0 || tileY < 0 || tileX >= location.map.Layers[0].LayerWidth || tileY >= location.map.Layers[0].LayerHeight)
+                    return false;
+
+                // Check basic passability (using the tile location)
+                if (!location.isTilePassable(new xTile.Dimensions.Location(tileX, tileY), Game1.viewport))
+                    return false;
+
+                // Check for specific obstructions
+                Vector2 tileVector = new Vector2(tileX, tileY);
+
+                // Check for objects
+                if (location.objects.ContainsKey(tileVector))
+                {
+                    // Optional: Check if the object is actually impassable
+                    if (location.objects[tileVector] != null && !location.objects[tileVector].isPassable())
+                        return false;
+                }
+
+                // Check for farmer
+                if (location.isTileOccupiedByFarmer(tileVector) != null)
+                    return false;
+
+                // Check for terrain features (like trees, grass, paths)
+                if (location.terrainFeatures.ContainsKey(tileVector))
+                {
+                    // Optional: Check if the terrain feature is impassable
+                    if (location.terrainFeatures[tileVector] != null && !location.terrainFeatures[tileVector].isPassable())
+                        return false;
+                }
+
+                // Check for large terrain features (like bushes)
+                // Note: This check might be less precise as it uses bounding boxes
+                foreach (var feature in location.largeTerrainFeatures)
+                {
+                    if (feature.getBoundingBox().Contains(tileX, tileY))
+                        return false;
+                }
+
+                // Check for water
+                if (location.isWaterTile(tileX, tileY))
+                    return false;
+
+                if (location.doesTileHaveProperty(tileX, tileY, "Water", "Back") != null)
+                    return false;
+
+                // Check for NoSpawn property
+                if (location.doesTileHaveProperty(tileX, tileY, "NoSpawn", "Back") != null)
+                    return false;
+
+                // Check for explicitly impassable tiles on specific layers
+                string buildingProperty = location.doesTileHaveProperty(tileX, tileY, "Passable", "Buildings");
+                if (buildingProperty != null && buildingProperty.Equals("F", StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                string backProperty = location.doesTileHaveProperty(tileX, tileY, "Passable", "Back");
+                if (backProperty != null && backProperty.Equals("F", StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                return true; // If all checks pass
+            }
+            catch (Exception ex)
+            {
+                Monitor.Log($"Error checking tile validity for ({tileX}, {tileY}) in {location?.Name ?? "Unknown"}: {ex.Message}", LogLevel.Trace);
+                return false;
+            }
+        }
+        
+        /// <summary>Finds a nearby valid tile if the target is invalid.</summary>
+        public Point? FindNearbyValidTile(GameLocation location, int centerX, int centerY, int maxRadius = 10)
+        {
+            if (location == null) return null;
+            // Check the starting point itself first
+            if (IsTileValid(location, centerX, centerY)) return new Point(centerX, centerY);
+
+            // Try tiles in expanding radius around the center point
+            for (int radius = 1; radius <= maxRadius; radius++)
+            {
+                // Check tiles in a spiral pattern
+                for (int dy = -radius; dy <= radius; dy++)
+                {
+                    for (int dx = -radius; dx <= radius; dx++)
+                    {
+                        // Only check the outer layer of the current radius
+                        if (Math.Abs(dx) != radius && Math.Abs(dy) != radius)
+                            continue;
+                        
+                        int x = centerX + dx;
+                        int y = centerY + dy;
+                        
+                        if (IsTileValid(location, x, y))
+                            return new Point(x, y);
+                    }
+                }
+            }
+            
+            return null; // No valid tile found within the radius
         }
     }
 }
