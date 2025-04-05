@@ -1,34 +1,62 @@
-using StardewModdingAPI.Utilities;
+using StardewModdingAPI;
+using StardewModdingAPI.Utilities; // Add missing using for KeybindList
 
 namespace WarpMod
 {
+    /// <summary>
+    /// Configuration settings for the Warp Mod
+    /// </summary>
     public class ModConfig
     {
-        /// <summary>Whether to enable the grid-based map warping functionality.</summary>
-        public bool MapWarpEnabled { get; set; } = true;
-        
-        /// <summary>Whether to enable caching of map thumbnails for better performance.</summary>
-        public bool EnableMapCaching { get; set; } = true;
-        
-        /// <summary>Whether to show modded locations in a separate category.</summary>
-        public bool GroupModdedLocations { get; set; } = true;
-        
-        /// <summary>Whether to enable search functionality for modded locations.</summary>
-        public bool EnableLocationSearch { get; set; } = true;
-        
-        /// <summary>Key binding to open the warp menu.</summary>
-        public KeybindList WarpKey { get; set; } = KeybindList.Parse("K, ControllerBack");
-        
-        /// <summary>Whether to use a special animation effect when warping.</summary>
-        public bool UseWarpEffects { get; set; } = true;
-        
-        /// <summary>Whether to prioritize SVE locations in the warp menu.</summary>
+        /// <summary>
+        /// Keybind to open the warp menu
+        /// </summary>
+        // Rename OpenMenuKey to WarpKey for consistency with ModEntry
+        public KeybindList WarpKey { get; set; } = KeybindList.Parse("M"); // Default key: M (Matches GMCM setup)
+
+        /// <summary>
+        /// Whether the main warp functionality is enabled.
+        /// </summary>
+        public bool MapWarpEnabled { get; set; } = true; // Add missing property used in ModEntry
+
+        /// <summary>
+        /// Whether to show locations from Stardew Valley Expanded (SVE)
+        /// </summary>
         public bool ShowSVELocations { get; set; } = true;
+
+        /// <summary>
+        /// Whether to group modded locations into a separate category.
+        /// </summary>
+        public bool GroupModdedLocations { get; set; } = true; // Add missing property used in ModEntry
+
+        /// <summary>
+        /// Maximum number of locations to show per category tab. Fixed at 9.
+        /// </summary>
+        public int MaxLocationsPerCategory { get; set; } = 9; // Fixed value
+
+        /// <summary>
+        /// Whether to use visual effects when warping
+        /// </summary>
+        public bool UseWarpEffects { get; set; } = true;
+
+        /// <summary>
+        /// Whether to hide locations that the player hasn't unlocked yet.
+        /// </summary>
+        public bool HideLockedLocations { get; set; } = true; // Default to true
         
-        /// <summary>Maximum number of locations to show in each category.</summary>
-        public int MaxLocationsPerCategory { get; set; } = 8;
+        /// <summary>
+        /// Whether to allow warping to locations that might be dangerous (e.g., mines when low health).
+        /// </summary>
+        public bool AllowDangerousLocations { get; set; } = true;
         
-        /// <summary>The path to the folder containing extracted map images (.png files).</summary>
-        public string MapImagesPath { get; set; } = "";
+        /// <summary>
+        /// Whether to strictly enforce transportation schedules (bus times, etc.).
+        /// </summary>
+        public bool StrictTransportation { get; set; } = false;
+        
+        /// <summary>
+        /// Whether to require friendship levels to enter personal spaces like bedrooms.
+        /// </summary>
+        public bool RequireFriendshipForHomes { get; set; } = false;
     }
 }

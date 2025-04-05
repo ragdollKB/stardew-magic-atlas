@@ -30,6 +30,16 @@ namespace WarpMod
         private bool showingMap = false;
         private string currentTab = "Town";
         private readonly List<ClickableComponent> tabButtons = new();
+        private List<ClickableComponent> visibleTabButtons = new(); // Tabs currently visible
+
+        // Scrolling state for tabs
+        private int tabScrollOffset = 0;
+        private int maxVisibleTabs = 0;
+        private bool canScrollTabsUp = false;
+        private bool canScrollTabsDown = false;
+        private ClickableTextureComponent tabScrollUpButton;
+        private ClickableTextureComponent tabScrollDownButton;
+        private Rectangle tabsArea; // Area where tabs are drawn
         
         // Configuration
         private readonly ModConfig config;
@@ -38,6 +48,8 @@ namespace WarpMod
         private const int BUTTON_PADDING = 10;
         private const int SIDEBAR_WIDTH = 300;
         private const int TAB_WIDTH = 130;
+        private const int TAB_HEIGHT = 46; // Define tab height constant
+        private const int TAB_SPACING = 10; // Define tab spacing constant
         private const float TITLE_SCALE = 1.2f;
         private const float BUTTON_TEXT_SCALE = 0.9f;
         
@@ -52,8 +64,8 @@ namespace WarpMod
             this.Helper = helper;
             this.config = config ?? new ModConfig();
             
-            // Initialize utility classes
-            this.locationManager = new LocationManager(monitor, this.config.ShowSVELocations);
+            // Initialize utility classes - Pass the full config object
+            this.locationManager = new LocationManager(monitor, this.config);
             this.mapRenderer = new MapRenderer(monitor, helper);
             
             // Play open menu sound and initialize the UI
@@ -63,47 +75,110 @@ namespace WarpMod
         
         private void Initialize()
         {
-            CreateTabs();
-            UpdateLocationButtons();
+            // Define the area available for tabs
+            int tabsStartY = yPositionOnScreen + 80;
+            int tabsEndY = yPositionOnScreen + height - 40; // Leave space at bottom
+            tabsArea = new Rectangle(
+                xPositionOnScreen + borderWidth,
+                tabsStartY,
+                TAB_WIDTH,
+                tabsEndY - tabsStartY
+            );
+
+            // Calculate how many tabs can fit
+            maxVisibleTabs = tabsArea.Height / (TAB_HEIGHT + TAB_SPACING);
+
+            CreateTabs(); // Create all potential tab buttons
+            CreateScrollButtons();
+            UpdateVisibleTabs(); // Determine which tabs are initially visible
+            UpdateLocationButtons(); // Update locations for the default/current tab
         }
         
         private void CreateTabs()
         {
-            // Clear any existing tabs
-            tabButtons.Clear();
-            
-            // Set position variables
-            int tabX = xPositionOnScreen + borderWidth;
-            int tabY = yPositionOnScreen + 80;
-            int tabHeight = 46;
-            int tabSpacing = 10;
-            
-            // Get location categories
-            var categories = locationManager.GetCategories().ToList();
-            
-            // Standard tab order for common locations
-            string[] orderedTabs = { "Town", "Farm", "Beach", "Mountain", "Forest", "Desert", "Island" };
-            
-            // Add standard tabs first
-            foreach (var category in orderedTabs)
-            {
-                if (categories.Contains(category))
-                {
-                    var bounds = new Rectangle(tabX, tabY, TAB_WIDTH, tabHeight);
-                    tabButtons.Add(new ClickableComponent(bounds, category));
-                    tabY += tabHeight + tabSpacing;
-                }
-            }
-            
-            // Add any remaining tabs
+            tabButtons.Clear(); // Clear the main list
+
+            // Get location categories sorted correctly
+            var categories = GetSortedCategories();
+
+            // Create a clickable component for each category, even if not initially visible
+            int currentY = tabsArea.Y; // Use tabsArea for positioning reference
             foreach (var category in categories)
             {
-                if (!orderedTabs.Contains(category))
-                {
-                    var bounds = new Rectangle(tabX, tabY, TAB_WIDTH, tabHeight);
-                    tabButtons.Add(new ClickableComponent(bounds, category));
-                    tabY += tabHeight + tabSpacing;
-                }
+                // Store bounds relative to the potential full list, not screen position yet
+                var bounds = new Rectangle(tabsArea.X, currentY, TAB_WIDTH, TAB_HEIGHT);
+                tabButtons.Add(new ClickableComponent(bounds, category));
+            }
+        }
+
+        /// <summary>Gets categories sorted with standard ones first.</summary>
+        private List<string> GetSortedCategories()
+        {
+            var allCategories = locationManager.GetCategories();
+            // Use LocationManager.MOD_LOCATIONS_CATEGORY constant
+            string[] orderedTabs = { "Farm", "Town", "Beach", "Mountain", "Forest", "Desert", "Island", LocationManager.MOD_LOCATIONS_CATEGORY }; 
+
+            var sortedList = new List<string>();
+
+            // Add standard tabs in order if they exist
+            foreach (var standardTab in orderedTabs)
+            {
+                // Handle split categories (e.g., "Town", "Town 2")
+                var matchingTabs = allCategories
+                    .Where(c => c == standardTab || c.StartsWith(standardTab + " "))
+                    .OrderBy(c => c.Length).ThenBy(c => c) // Sort "Town", "Town 2", "Town 10"
+                    .ToList();
+                sortedList.AddRange(matchingTabs);
+            }
+
+            // Add any remaining categories not in the standard list
+            sortedList.AddRange(allCategories.Where(c => !sortedList.Contains(c)).OrderBy(c => c));
+
+            return sortedList.Distinct().ToList(); // Ensure no duplicates if logic overlaps
+        }
+
+        private void CreateScrollButtons()
+        {
+            tabScrollUpButton = new ClickableTextureComponent(
+                new Rectangle(tabsArea.X + (tabsArea.Width - Game1.tileSize) / 2, tabsArea.Y - TAB_HEIGHT / 2 - 5, Game1.tileSize, Game1.tileSize), // Position above tabs
+                Game1.mouseCursors,
+                Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 12), // Up arrow
+                1f
+            );
+            tabScrollDownButton = new ClickableTextureComponent(
+                new Rectangle(tabsArea.X + (tabsArea.Width - Game1.tileSize) / 2, tabsArea.Y + tabsArea.Height + 5, Game1.tileSize, Game1.tileSize), // Position below tabs
+                Game1.mouseCursors,
+                Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 11), // Down arrow
+                1f
+            );
+        }
+
+        /// <summary>Updates which tabs are visible based on the scroll offset.</summary>
+        private void UpdateVisibleTabs()
+        {
+            visibleTabButtons.Clear();
+            canScrollTabsUp = tabScrollOffset > 0;
+            canScrollTabsDown = tabScrollOffset + maxVisibleTabs < tabButtons.Count;
+
+            int currentY = tabsArea.Y;
+            for (int i = 0; i < maxVisibleTabs; i++)
+            {
+                int tabIndex = tabScrollOffset + i;
+                if (tabIndex >= tabButtons.Count) break; // Stop if we run out of tabs
+
+                ClickableComponent tab = tabButtons[tabIndex];
+                // Update the bounds to the actual screen position for drawing and clicking
+                tab.bounds = new Rectangle(tabsArea.X, currentY, TAB_WIDTH, TAB_HEIGHT);
+                visibleTabButtons.Add(tab);
+                currentY += TAB_HEIGHT + TAB_SPACING;
+            }
+
+            // Ensure the currentTab is still valid, select the first visible if not
+            if (!visibleTabButtons.Any(t => t.name == currentTab) && visibleTabButtons.Any())
+            {
+                currentTab = visibleTabButtons.First().name;
+                // Need to update location buttons if the tab changed automatically
+                UpdateLocationButtons();
             }
         }
 
@@ -171,11 +246,21 @@ namespace WarpMod
             Vector2 titlePos = new Vector2(xPositionOnScreen + width / 2 - titleSize.X / 2, yPositionOnScreen + 30);
             b.DrawString(Game1.dialogueFont, title, titlePos, Game1.textColor, 0f, Vector2.Zero, TITLE_SCALE, SpriteEffects.None, 1f);
             
-            // Draw tabs
-            foreach (var tab in tabButtons)
+            // Draw VISIBLE tabs
+            foreach (var tab in visibleTabButtons) // Iterate through visible tabs only
             {
                 bool isSelected = tab.name == currentTab;
                 DrawTab(b, tab.bounds, tab.name, isSelected, tab.containsPoint(Game1.getMouseX(), Game1.getMouseY()));
+            }
+
+            // Draw scroll buttons if needed
+            if (canScrollTabsUp)
+            {
+                tabScrollUpButton.draw(b);
+            }
+            if (canScrollTabsDown)
+            {
+                tabScrollDownButton.draw(b);
             }
             
             // Draw location buttons
@@ -326,8 +411,8 @@ namespace WarpMod
                 return;
             }
             
-            // Handle tab clicks
-            foreach (var tab in tabButtons)
+            // Handle tab clicks (check only visible tabs)
+            foreach (var tab in visibleTabButtons)
             {
                 if (tab.containsPoint(x, y))
                 {
@@ -337,11 +422,25 @@ namespace WarpMod
                         selectedLocation = null;
                         showingMap = false;
                         currentLocation = null;
-                        Game1.playSound("smallSelect"); // Standard UI sound
-                        UpdateLocationButtons();
+                        Game1.playSound("smallSelect");
+                        UpdateLocationButtons(); // Update locations for the new tab
                     }
-                    return;
+                    return; // Click handled
                 }
+            }
+
+            // Handle scroll button clicks
+            if (canScrollTabsUp && tabScrollUpButton.containsPoint(x, y))
+            {
+                ScrollTabs(-1);
+                Game1.playSound("shwip"); // Sound for scroll
+                return;
+            }
+            if (canScrollTabsDown && tabScrollDownButton.containsPoint(x, y))
+            {
+                ScrollTabs(1);
+                Game1.playSound("shwip");
+                return;
             }
             
             // Handle location button clicks
@@ -374,20 +473,73 @@ namespace WarpMod
             {
                 // Calculate normalized position within map
                 Point relativePos = new Point(x - mapViewArea.X, y - mapViewArea.Y);
-                // Ensure relativePos is not negative if click is on the border
                 relativePos.X = Math.Max(0, relativePos.X);
                 relativePos.Y = Math.Max(0, relativePos.Y);
 
-                float normalizedX = mapViewArea.Width > 0 ? relativePos.X / (float)mapViewArea.Width : 0;
-                float normalizedY = mapViewArea.Height > 0 ? relativePos.Y / (float)mapViewArea.Height : 0;
-                
-                // Convert to game coordinates
-                int tileX = (int)(normalizedX * currentLocation.map.Layers[0].LayerWidth);
-                int tileY = (int)(normalizedY * currentLocation.map.Layers[0].LayerHeight);
-                
-                // Warp to location
-                WarpToLocation(selectedLocation, tileX, tileY);
-                return;
+                float normalizedX = mapViewArea.Width > 0 ? (float)relativePos.X / mapViewArea.Width : 0;
+                float normalizedY = mapViewArea.Height > 0 ? (float)relativePos.Y / mapViewArea.Height : 0;
+
+                // Convert to game coordinates (ensure map is not null)
+                if (currentLocation.map?.Layers?.Count > 0)
+                {
+                    int tileX = (int)(normalizedX * currentLocation.map.Layers[0].LayerWidth);
+                    int tileY = (int)(normalizedY * currentLocation.map.Layers[0].LayerHeight);
+
+                    // Warp to location
+                    WarpToLocation(selectedLocation, tileX, tileY);
+                }
+                else
+                {
+                    Monitor.Log($"Cannot warp via map click: Map data unavailable for {selectedLocation}.", LogLevel.Warn);
+                    Game1.playSound("cancel");
+                }
+                return; // Click handled
+            }
+        }
+
+        public override void receiveScrollWheelAction(int direction)
+        {
+            // Check if mouse is over the tabs area
+            int mouseX = Game1.getMouseX();
+            int mouseY = Game1.getMouseY();
+            if (tabsArea.Contains(mouseX, mouseY))
+            {
+                // direction is positive for scroll down, negative for scroll up
+                if (direction > 0 && canScrollTabsDown)
+                {
+                    ScrollTabs(1);
+                    Game1.playSound("shiny4"); // Different sound for wheel scroll
+                }
+                else if (direction < 0 && canScrollTabsUp)
+                {
+                    ScrollTabs(-1);
+                    Game1.playSound("shiny4");
+                }
+            }
+        }
+
+        /// <summary>Scrolls the tab list up or down.</summary>
+        /// <param name="amount">Positive to scroll down, negative to scroll up.</param>
+        private void ScrollTabs(int amount)
+        {
+            int newOffset = tabScrollOffset + amount;
+
+            // Clamp the offset
+            newOffset = Math.Max(0, newOffset); // Don't go below 0
+            // Ensure scrolling stops when the last item is fully visible
+            if (tabButtons.Count > maxVisibleTabs) // Only clamp if scrolling is possible
+            {
+                newOffset = Math.Min(tabButtons.Count - maxVisibleTabs, newOffset); 
+            }
+            else
+            {
+                newOffset = 0; // No scrolling needed if all fit
+            }
+
+            if (newOffset != tabScrollOffset)
+            {
+                tabScrollOffset = newOffset;
+                UpdateVisibleTabs(); // Update which tabs are shown
             }
         }
         

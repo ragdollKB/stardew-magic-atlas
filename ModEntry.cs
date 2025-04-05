@@ -196,13 +196,15 @@ namespace WarpMod
                 setValue: value => this.config.ShowSVELocations = value
             );
             
-            // Add integer option for max locations per category
+            // Removed "Show More Locations" option as MaxLocationsPerCategory is now fixed
+
+            // Add option to hide locked locations
             configMenu.AddBoolOption(
                 mod: this.ModManifest,
-                name: () => "Show More Locations",
-                tooltip: () => "Whether to show many locations per category.",
-                getValue: () => this.config.MaxLocationsPerCategory > 8,
-                setValue: value => this.config.MaxLocationsPerCategory = value ? 12 : 8
+                name: () => "Hide Locked Locations",
+                tooltip: () => "Hide warp destinations until the player unlocks them in the game.",
+                getValue: () => this.config.HideLockedLocations,
+                setValue: value => this.config.HideLockedLocations = value
             );
 
             this.Monitor.Log("GMCM integration completed", LogLevel.Info);
