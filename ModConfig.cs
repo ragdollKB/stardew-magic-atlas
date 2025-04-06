@@ -58,5 +58,10 @@ namespace WarpMod
         /// Whether to require friendship levels to enter personal spaces like bedrooms.
         /// </summary>
         public bool RequireFriendshipForHomes { get; set; } = false;
+
+        /// <summary>
+        /// Whether to show indoor locations (shops, houses) and special areas (mines, caves) in the warp menu.
+        /// </summary>
+        public bool ShowIndoorAndSpecialLocations { get; set; } = false; // Default to false for simpler map
     }
 }

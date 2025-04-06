@@ -187,8 +187,11 @@ namespace WarpMod
             locationButtons.Clear();
 
             // Calculate positions
-            int buttonX = xPositionOnScreen + TAB_WIDTH + 24;
-            int buttonWidth = SIDEBAR_WIDTH - TAB_WIDTH - 32;
+            // Increase horizontal space between tabs and buttons
+            int buttonX = xPositionOnScreen + TAB_WIDTH + 40; // Increased from 24 to 40
+            int buttonWidth = SIDEBAR_WIDTH - TAB_WIDTH - 48; // Adjust width calculation if needed, maybe keep SIDEBAR_WIDTH relative?
+            buttonWidth = xPositionOnScreen + SIDEBAR_WIDTH - buttonX - 16; // Calculate width based on new start X and right padding
+
             int buttonHeight = 55;
             int buttonY = yPositionOnScreen + 75;
             
@@ -213,8 +216,8 @@ namespace WarpMod
                 }
             }
             
-            // Setup map area
-            int mapX = xPositionOnScreen + SIDEBAR_WIDTH + 24;
+            // Setup map area - Ensure mapX respects the new sidebar spacing
+            int mapX = xPositionOnScreen + SIDEBAR_WIDTH + 24; // Keep map relative to the overall sidebar width for now
             int mapY = yPositionOnScreen + 75;
             int mapWidth = width - SIDEBAR_WIDTH - 48;
             int mapHeight = height - 110;
@@ -240,10 +243,10 @@ namespace WarpMod
             b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.7f);
             DrawMenuBox(b);
             
-            // Draw title - Larger and centered
+            // Draw title - Move slightly higher
             string title = "Magic Atlas";
             Vector2 titleSize = Game1.dialogueFont.MeasureString(title) * TITLE_SCALE;
-            Vector2 titlePos = new Vector2(xPositionOnScreen + width / 2 - titleSize.X / 2, yPositionOnScreen + 30);
+            Vector2 titlePos = new Vector2(xPositionOnScreen + width / 2 - titleSize.X / 2, yPositionOnScreen + 20); // Changed from 30 to 20
             b.DrawString(Game1.dialogueFont, title, titlePos, Game1.textColor, 0f, Vector2.Zero, TITLE_SCALE, SpriteEffects.None, 1f);
             
             // Draw VISIBLE tabs
@@ -359,24 +362,30 @@ namespace WarpMod
             int mapContainerHeight = height - 110;
             IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
                 mapContainerX, mapContainerY, mapContainerWidth, mapContainerHeight, 
-                Color.White * 0.9f); // Slightly transparent background
+                Color.White * 0.9f); 
             
-            // Draw location name above the map
+            // Draw location name above the map - Ensure it doesn't overlap main title
             string locationName = locationManager.GetDisplayName(selectedLocation);
             Vector2 nameSize = Game1.dialogueFont.MeasureString(locationName);
             Vector2 namePos = new Vector2(
                 mapContainerX + (mapContainerWidth - nameSize.X) / 2,
-                mapContainerY - nameSize.Y - 8 // Position above the container
+                mapContainerY - nameSize.Y - 15 // Increased spacing slightly more (from 12 to 15)
             );
+            // Ensure name doesn't go too high and overlap main title (adjust minimum Y if needed)
+            namePos.Y = Math.Max(namePos.Y, yPositionOnScreen + 55); // Adjusted minimum Y slightly (from 50 to 55)
+
             b.DrawString(Game1.dialogueFont, locationName, namePos, Game1.textColor);
             
-            // Draw instruction text below the map - More specific
+            // Draw instruction text below the map - Move slightly higher and ensure centering
             string instructionText = "Click on the map to warp to a specific spot";
             Vector2 instructionSize = Game1.smallFont.MeasureString(instructionText);
             Vector2 instructionPos = new Vector2(
                 mapContainerX + (mapContainerWidth - instructionSize.X) / 2,
-                mapContainerY + mapContainerHeight + 8 // Position below the container
+                mapContainerY + mapContainerHeight + 5 // Position below the container, slightly less padding (from 8 to 5)
             );
+            // Ensure it doesn't go below the menu box bottom edge
+            instructionPos.Y = Math.Min(instructionPos.Y, yPositionOnScreen + height - instructionSize.Y - 15); 
+
             b.DrawString(Game1.smallFont, instructionText, instructionPos, Game1.textColor * 0.8f);
             
             // Draw the map itself within the calculated mapViewArea

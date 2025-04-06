@@ -207,6 +207,15 @@ namespace WarpMod
                 setValue: value => this.config.HideLockedLocations = value
             );
 
+            // Add option to show indoor/special locations
+            configMenu.AddBoolOption(
+                mod: this.ModManifest,
+                name: () => "Show Indoor & Special Locations",
+                tooltip: () => "Include shops, houses, mines, caves, etc., in the warp menu.",
+                getValue: () => this.config.ShowIndoorAndSpecialLocations,
+                setValue: value => this.config.ShowIndoorAndSpecialLocations = value
+            );
+
             this.Monitor.Log("GMCM integration completed", LogLevel.Info);
         }
     }

@@ -58,9 +58,11 @@ namespace WarpMod.Utility
             // Add locations that should be excluded
             string[] excludedMaps = new[]
             {
-                "Backwoods", "Temp", "Cutscene", "Credits", "Intro", "Mine",
+                "Backwoods", "Temp", "Cutscene", "Credits", "Intro", "Mine", // Keep existing
                 "UndergroundMine", "VolcanoDungeon", "Submarine", "BoatTunnel", 
-                "Temp_", "_Ambient", "fishingGame", "festivalSpot"
+                "Temp_", "_Ambient", "fishingGame", "festivalSpot",
+                "DesertFestival" // Add DesertFestival
+                // Add other temporary or unusable locations if needed
             };
             
             foreach (var map in excludedMaps)
@@ -82,6 +84,8 @@ namespace WarpMod.Utility
                 .Where(loc => loc != null && !string.IsNullOrEmpty(loc.Name) && loc.map != null)
                 .Where(loc => !IsBlacklisted(loc.Name))
                 .Where(loc => !Config.HideLockedLocations || IsLocationAccessible(loc.Name)) // Use full accessibility check
+                // Apply the new filter based on config
+                .Where(loc => Config.ShowIndoorAndSpecialLocations || IsMajorOutdoorLocation(loc.Name))
                 .OrderBy(loc => GetDisplayName(loc.Name)) // Sort alphabetically by display name
                 .ToList();
 
@@ -161,6 +165,22 @@ namespace WarpMod.Utility
             }
         }
 
+        /// <summary>Checks if a location is one of the major outdoor areas.</summary>
+        private bool IsMajorOutdoorLocation(string locationName)
+        {
+            // Define the core outdoor locations
+            string[] majorOutdoor = { 
+                "Farm", "Town", "Beach", "Mountain", "Forest", "Desert", "BusStop", "Railroad"
+                // Add Island locations if desired as core outdoor areas
+                // "IslandSouth", "IslandWest", "IslandNorth", "IslandEast"
+            };
+            
+            // Check if the location name matches or starts with one of the major areas
+            // (StartsWith helps catch variations like FarmHouse, FarmCave if needed, though categorization might handle this)
+            // For simplicity, let's do an exact match for the main areas.
+            return majorOutdoor.Contains(locationName, StringComparer.OrdinalIgnoreCase);
+        }
+
         /// <summary>Applies specific sorting overrides like putting "Farm" first.</summary>
          private void ApplySortingOverrides()
          {
@@ -182,7 +202,7 @@ namespace WarpMod.Utility
         /// <summary>Checks if the player has unlocked access to a given location.</summary>
         private bool IsLocationUnlocked(string locationName)
         {
-            // Always allow Farm and Town basics
+            // Always allow Farm and Town basics if not hidden
             if (locationName == "Farm" || locationName == "FarmHouse" || locationName == "Town")
                 return true;
 
@@ -191,10 +211,10 @@ namespace WarpMod.Utility
             {
                 case "Desert":
                     return Game1.isLocationAccessible("Desert"); // Bus repair
-                case "SkullCave":
-                    return Game1.isLocationAccessible("Desert"); // Bus repair
-                case "Club": // Casino
-                    return Game1.isLocationAccessible("Desert"); // Bus repair
+                case "SkullCave": // Requires Skull Key (in addition to Desert access)
+                    return Game1.isLocationAccessible("Desert") && Game1.player.hasSkullKey;
+                case "Club": // Casino - Requires Club Card (in addition to Desert access)
+                     return Game1.isLocationAccessible("Desert") && Game1.player.hasClubCard;
                 case "IslandSouth":
                     return Game1.isLocationAccessible("IslandSouth"); // Boat repair
                 case "IslandWest":
@@ -206,7 +226,6 @@ namespace WarpMod.Utility
                 case "VolcanoDungeon0":
                     return Game1.isLocationAccessible("IslandSouth"); // Boat repair
                 case "Woods": // Secret Woods
-                    // Check for Steel Axe upgrade (level 3)
                     return Game1.player.toolBeingUpgraded.Value == null && Game1.player.getToolFromName("Axe")?.UpgradeLevel >= 2;
                 case "Sewer":
                     return Game1.player.hasRustyKey;
@@ -214,21 +233,52 @@ namespace WarpMod.Utility
                     return Game1.player.hasDarkTalisman;
                 case "WitchSwamp": // Accessed via Railroad
                     return Game1.player.hasMagicInk;
-                case "Railroad":
-                    // Unlocked after 3rd day of Summer, Year 1
-                    return Game1.Date.TotalDays >= (3 * 28 + 3); // Start of Summer Year 1 is day 28+1
+                case "Railroad": // Event triggers Summer 3, Year 1
+                    return Game1.Date.TotalDays >= (1 * 28 + 3 + 28); 
                 case "CommunityCenter":
-                    // Accessible from the start, but appearance changes
                     return true; 
                 case "MovieTheater":
-                    // Requires Community Center completion OR Joja Membership + purchase
                     return (Game1.MasterPlayer.mailReceived.Contains("ccIsComplete") || Game1.MasterPlayer.mailReceived.Contains("JojaMember")) && Game1.isLocationAccessible("MovieTheater");
+                
+                // ADDED/UPDATED CHECKS:
+                case "Summit": // Requires Perfection & event seen
+                    return StardewValley.Utility.percentGameComplete() >= 1.0 && Game1.player.eventsSeen.Contains("79160001");
+                case "Sunroom": // Caroline's Sunroom
+                    return Game1.player.getFriendshipHeartLevelForNPC("Caroline") >= 2;
+                case "WitchHut": // Requires Dark Talisman quest completion (Goblin Problem)
+                    return Game1.player.mailReceived.Contains("witchStatueGone");
+                case "Trailer_Big": // Pam's upgraded trailer
+                    return Game1.player.mailReceived.Contains("pamHouseUpgrade");
+
+                // Most standard houses/shops are accessible by default if shown (no specific unlock needed beyond game access)
+                case "HaleyHouse":
+                case "SamHouse":
+                case "JoshHouse":
+                case "ScienceHouse":
+                case "ElliottHouse":
+                case "LeahHouse":
+                case "Trailer": // Pam's initial trailer
+                case "Tent": // Linus' tent
+                case "SeedShop":
+                case "Saloon":
+                case "Blacksmith":
+                case "Hospital":
+                case "AnimalShop":
+                case "FishShop":
+                case "ArchaeologyHouse": // Museum
+                case "AdventureGuild":
+                case "BathHouse_Entry":
+                case "WizardHouse": // Base wizard house access
+                    return true;
+
                 // Add more checks for specific mod locations if needed
-                // e.g., SVE locations might have their own flags
             }
 
-            // Default to accessible if no specific condition is known
-            return true;
+            // Default to accessible ONLY if indoor locations are shown AND no specific condition failed above.
+            // If HideLockedLocations is true, this default won't matter due to the filter in LoadLocations.
+            // If HideLockedLocations is false, this allows unlisted indoor locations to show up.
+            // Consider changing this default to 'false' if you want *only* explicitly checked locations to appear.
+            return true; 
         }
         
         /// <summary>
@@ -731,15 +781,78 @@ namespace WarpMod.Utility
             if (x < 0 || x >= location.map.Layers[0].LayerWidth || y < 0 || y >= location.map.Layers[0].LayerHeight)
                 return false;
             
-            // Check if the tile is not blocked by terrain or objects
+            // Check if the tile is passable (not blocked by walls or terrain)
+            if (!location.isTilePassable(new xTile.Dimensions.Location(x, y), Game1.viewport))
+                return false;
+                
+            // Check for explicit "NoWarp" property on tile
             var tile = location.map.Layers[0].Tiles[x, y];
             if (tile == null || tile.Properties.ContainsKey("NoWarp"))
                 return false;
             
-            // Check if the tile is not blocked by buildings or other structures
-            if (location.terrainFeatures.ContainsKey(new Vector2(x, y)) || location.objects.ContainsKey(new Vector2(x, y)))
+            // Check for collision with objects or buildings
+            Vector2 tileVector = new Vector2(x, y);
+            if (location.isCollidingPosition(new Rectangle(x * Game1.tileSize, y * Game1.tileSize, Game1.tileSize, Game1.tileSize), Game1.viewport, true, 0, false, null, false, false))
                 return false;
             
+            // Check if the tile has terrain features or objects that block movement
+            if (location.terrainFeatures.ContainsKey(tileVector))
+            {
+                // Check if the terrain feature is passable
+                var feature = location.terrainFeatures[tileVector];
+                if (!feature.isPassable())
+                    return false;
+            }
+            
+            if (location.objects.ContainsKey(tileVector))
+            {
+                // Check if the object is passable
+                var obj = location.objects[tileVector];
+                if (obj.isPassable() == false)
+                    return false;
+            }
+            
+            // Check for furniture items
+            foreach (var furniture in location.furniture)
+            {
+                if (furniture.boundingBox.Value.Contains(x * Game1.tileSize, y * Game1.tileSize))
+                    return false;
+            }
+            
+            // Check for special areas in mines/skull cavern/volcano where players shouldn't go
+            if ((location.Name.Contains("Mine") || location.Name.Contains("SkullCave") || location.Name.Contains("Volcano")))
+            {
+                // Check for edge cases like ladder positions, shafts, etc.
+                foreach (var ladder in location.objects.Pairs)
+                {
+                    if ((ladder.Value.Name.Contains("Ladder") || ladder.Value.Name.Contains("Shaft")) && ladder.Key == tileVector)
+                        return false; // Don't warp onto ladders or shafts
+                }
+                
+                // Check for deep water or lava
+                if (location.doesTileHaveProperty((int)tileVector.X, (int)tileVector.Y, "Water", "Back") != null ||
+                    location.doesTileHaveProperty((int)tileVector.X, (int)tileVector.Y, "WaterSource", "Back") != null ||
+                    location.doesTileHaveProperty((int)tileVector.X, (int)tileVector.Y, "Lava", "Back") != null)
+                    return false;
+            }
+            
+            // Check for edge tiles to avoid warping on map edges
+            if (x <= 1 || y <= 1 || x >= location.map.Layers[0].LayerWidth - 2 || y >= location.map.Layers[0].LayerHeight - 2)
+            {
+                // Check if this edge tile has a warp
+                if (location.isCollidingWithWarpOrDoor(new Rectangle(x * Game1.tileSize, y * Game1.tileSize, Game1.tileSize, Game1.tileSize)) != null)
+                    return false; // Don't allow warping onto warps - it's confusing
+            }
+            
+            // Check for water/unwalkable paths
+            if (location.doesTileHaveProperty((int)tileVector.X, (int)tileVector.Y, "Water", "Back") != null ||
+                location.doesTileHaveProperty((int)tileVector.X, (int)tileVector.Y, "Unwalkable", "Back") != null)
+                return false;
+                
+            // Check for NPC pathing obstacles
+            if (location.doesTileHavePropertyNoNull((int)tileVector.X, (int)tileVector.Y, "NoPath", "Buildings") == "T")
+                return false;
+                
             // Tile is valid for warping
             return true;
         }

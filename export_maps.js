@@ -11,11 +11,11 @@ var FileInfo = {
 
 // Configuration
 var config = {
-    // Source directory with unpacked TBIN files
-    sourceDir: "C:/Users/kanto/OneDrive/Documents/stardew_plugin/game_folder/Stardew Valley/Content (unpacked)/Maps",
+    // Source directory with unpacked TBIN files - Corrected based on user feedback
+    sourceDir: "C:/Users/kanto/OneDrive/Documents/stardew-magic-atlas/game_folder/Stardew Valley/Content (unpacked)/Maps",
     
     // Target directory for exported PNG files
-    targetDir: "C:/Users/kanto/OneDrive/Documents/stardew_plugin/assets/maps",
+    targetDir: "C:/Users/kanto/OneDrive/Documents/stardew-magic-atlas/assets/maps",
     
     // List of maps to export (add or remove as needed)
     mapFiles: [
@@ -28,7 +28,7 @@ var config = {
         "Desert.tbin",
         "Woods.tbin",
         "Railroad.tbin",
-        "Mine.tbin",
+        "Mine.tbin", // Note: This is just the entrance map
         "Backwoods.tbin",
         "SeedShop.tbin",
         "ScienceHouse.tbin",
@@ -41,7 +41,34 @@ var config = {
         "IslandSouth.tbin",
         "IslandWest.tbin",
         "IslandNorth.tbin",
-        "IslandEast.tbin"
+        "IslandEast.tbin",
+        // Added missing indoor/special locations:
+        "SkullCave.tbin",
+        "Club.tbin", // Casino
+        "Sewer.tbin",
+        "BugLand.tbin",
+        "WitchSwamp.tbin",
+        "WitchHut.tbin",
+        "CommunityCenter.tbin", // Base Community Center
+        "MovieTheater.tbin",
+        "Summit.tbin",
+        "Sunroom.tbin",
+        "Trailer.tbin", // Pam's initial trailer
+        "Trailer_Big.tbin", // Pam's upgraded trailer
+        "Tent.tbin", // Linus' tent
+        "ArchaeologyHouse.tbin", // Museum
+        "AdventureGuild.tbin",
+        "BathHouse_Entry.tbin",
+        "WizardHouse.tbin",
+        "WizardHouseBasement.tbin",
+        "HaleyHouse.tbin",
+        "SamHouse.tbin",
+        "JoshHouse.tbin",
+        "ElliottHouse.tbin",
+        "LeahHouse.tbin",
+        "HarveyRoom.tbin",
+        "SebastianRoom.tbin"
+        // Add others if needed, e.g., specific mine levels aren't practical here
     ]
 };
 
