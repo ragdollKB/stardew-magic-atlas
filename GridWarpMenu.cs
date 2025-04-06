@@ -225,12 +225,21 @@ namespace WarpMod
             // Use a slightly smaller area for the map itself to allow for padding/border
             Rectangle innerMapBounds = new Rectangle(mapX + 10, mapY + 10, mapWidth - 20, mapHeight - 20);
 
+            // Special handling for Desert map width
+            if (showingMap && currentLocation?.Name == "Desert")
+            {
+                // Make the bounds wider for the desert map calculation, potentially reducing height slightly if needed
+                int desertMapWidth = mapWidth - 5; // Use slightly more width
+                int desertMapHeight = mapHeight - 40; // Reduce height to compensate if necessary
+                innerMapBounds = new Rectangle(mapX + 5, mapY + 20, desertMapWidth, desertMapHeight);
+            }
+
             if (showingMap && currentLocation?.Map != null)
             {
                 mapViewArea = mapRenderer.CalculateMapViewArea(
                     currentLocation.Map.DisplayWidth,
                     currentLocation.Map.DisplayHeight,
-                    innerMapBounds
+                    innerMapBounds // Use potentially adjusted bounds
                 );
             }
             else
@@ -245,11 +254,7 @@ namespace WarpMod
             // Draw a darker, slightly textured background for the "atlas" feel
             DrawMenuBackground(b); // New method for background
 
-            // Draw title - Centered, slightly higher
-            string title = "Magic Atlas";
-            Vector2 titleSize = Game1.dialogueFont.MeasureString(title) * TITLE_SCALE;
-            Vector2 titlePos = new Vector2(xPositionOnScreen + width / 2 - titleSize.X / 2, yPositionOnScreen + 25); // Adjusted Y
-            b.DrawString(Game1.dialogueFont, title, titlePos, Game1.textColor * 0.9f, 0f, Vector2.Zero, TITLE_SCALE, SpriteEffects.None, 1f);
+            // Title is now drawn conditionally within DrawMapAreaContent or DrawInstructions
 
             // Draw VISIBLE category buttons
             foreach (var categoryButton in visibleTabButtons)
@@ -270,7 +275,7 @@ namespace WarpMod
                     isSelected, button.containsPoint(Game1.getMouseX(), Game1.getMouseY()));
             }
 
-            // Draw map or instructions in the map area
+            // Draw map or instructions in the map area (this will handle title drawing)
             DrawMapAreaContent(b);
 
             // Draw cursor
@@ -381,14 +386,15 @@ namespace WarpMod
 
             if (showingMap && selectedLocation != null && currentLocation != null)
             {
-                // Draw location name above the map
+                // Draw location name above the map (centered within the main menu width)
                 string locationName = locationManager.GetDisplayName(selectedLocation);
-                Vector2 nameSize = Game1.dialogueFont.MeasureString(locationName);
+                Vector2 nameSize = Game1.dialogueFont.MeasureString(locationName) * TITLE_SCALE; // Use title scale
+                // Center based on the overall menu width for consistency
                 Vector2 namePos = new Vector2(
-                    mapContainerBounds.X + (mapContainerBounds.Width - nameSize.X) / 2,
-                    mapContainerBounds.Y - nameSize.Y - 8 // Position above the container
+                    xPositionOnScreen + width / 2 - nameSize.X / 2,
+                    yPositionOnScreen + 25 // Same Y position as the original title
                 );
-                b.DrawString(Game1.dialogueFont, locationName, namePos, Color.Wheat); // Use a thematic color
+                b.DrawString(Game1.dialogueFont, locationName, namePos, Color.Wheat, 0f, Vector2.Zero, TITLE_SCALE, SpriteEffects.None, 1f); // Use a thematic color and scale
 
                 // Draw the map itself within the calculated mapViewArea
                 mapRenderer.DrawMapThumbnail(b, currentLocation, mapViewArea);
@@ -404,14 +410,21 @@ namespace WarpMod
             }
             else
             {
-                // Draw placeholder instructions when no map is shown
-                DrawInstructions(b, mapContainerBounds);
+                // Draw placeholder instructions and the main title when no map is shown
+                DrawInstructionsAndTitle(b, mapContainerBounds);
             }
         }
 
-        // Updated DrawInstructions to accept bounds
-        private void DrawInstructions(SpriteBatch b, Rectangle containerBounds)
+        // Updated DrawInstructions to accept bounds and draw title conditionally
+        private void DrawInstructionsAndTitle(SpriteBatch b, Rectangle containerBounds)
         {
+            // Draw title - Centered, slightly higher (only when no map selected)
+            string title = "Magic Atlas";
+            Vector2 titleSize = Game1.dialogueFont.MeasureString(title) * TITLE_SCALE;
+            Vector2 titlePos = new Vector2(xPositionOnScreen + width / 2 - titleSize.X / 2, yPositionOnScreen + 25); // Adjusted Y
+            b.DrawString(Game1.dialogueFont, title, titlePos, Game1.textColor * 0.9f, 0f, Vector2.Zero, TITLE_SCALE, SpriteEffects.None, 1f);
+
+            // Draw instructions centered in the container
             string instruction = "Select a category, then a location";
             Vector2 textSize = Game1.dialogueFont.MeasureString(instruction);
             Vector2 position = new Vector2(

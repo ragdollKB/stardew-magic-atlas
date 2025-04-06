@@ -2,10 +2,12 @@ using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Locations;
+using StardewValley.Objects; // Add using for Furniture class
+using StardewValley.TerrainFeatures;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions; // Add for Regex
+using System.Text.RegularExpressions;
 
 namespace WarpMod.Utility
 {
@@ -777,83 +779,84 @@ namespace WarpMod.Utility
         /// </summary>
         private bool IsTileValid(GameLocation location, int x, int y)
         {
+            Vector2 tileVector = new Vector2(x, y);
+            Rectangle tileRect = new Rectangle(x * Game1.tileSize, y * Game1.tileSize, Game1.tileSize, Game1.tileSize);
+
             // Check if the tile is within bounds
             if (x < 0 || x >= location.map.Layers[0].LayerWidth || y < 0 || y >= location.map.Layers[0].LayerHeight)
                 return false;
-            
-            // Check if the tile is passable (not blocked by walls or terrain)
-            if (!location.isTilePassable(new xTile.Dimensions.Location(x, y), Game1.viewport))
-                return false;
-                
+
             // Check for explicit "NoWarp" property on tile
-            var tile = location.map.Layers[0].Tiles[x, y];
-            if (tile == null || tile.Properties.ContainsKey("NoWarp"))
+            string noWarpProp = location.doesTileHaveProperty(x, y, "NoWarp", "Back");
+            if (!string.IsNullOrEmpty(noWarpProp) && noWarpProp.Equals("T", StringComparison.OrdinalIgnoreCase))
                 return false;
-            
-            // Check for collision with objects or buildings
-            Vector2 tileVector = new Vector2(x, y);
-            if (location.isCollidingPosition(new Rectangle(x * Game1.tileSize, y * Game1.tileSize, Game1.tileSize, Game1.tileSize), Game1.viewport, true, 0, false, null, false, false))
-                return false;
-            
-            // Check if the tile has terrain features or objects that block movement
-            if (location.terrainFeatures.ContainsKey(tileVector))
+
+            // Check if the tile is passable according to the map layer (basic check)
+            if (!location.isTilePassable(new xTile.Dimensions.Location(x, y), Game1.viewport))
+                 return false;
+
+            // Check if the tile is occupied by a non-passable object
+            if (location.objects.TryGetValue(tileVector, out StardewValley.Object obj) && !obj.isPassable())
             {
-                // Check if the terrain feature is passable
-                var feature = location.terrainFeatures[tileVector];
-                if (!feature.isPassable())
-                    return false;
+                 return false;
             }
-            
-            if (location.objects.ContainsKey(tileVector))
+
+            // Check if the tile is occupied by a large terrain feature (like a bush or tree)
+            foreach (LargeTerrainFeature ltf in location.largeTerrainFeatures)
             {
-                // Check if the object is passable
-                var obj = location.objects[tileVector];
-                if (obj.isPassable() == false)
-                    return false;
+                if (ltf.getBoundingBox().Intersects(tileRect))
+                {
+                    return false; // Large terrain features generally block warping onto their tile
+                }
             }
-            
-            // Check for furniture items
+
+            // Check for furniture collision
             foreach (var furniture in location.furniture)
             {
-                if (furniture.boundingBox.Value.Contains(x * Game1.tileSize, y * Game1.tileSize))
-                    return false;
+                 // Use boundingBox.Value as boundingBox is a NetRectangle
+                 if (furniture.boundingBox.Value.Intersects(tileRect))
+                 {
+                     // Check if the furniture piece is passable (like rugs)
+                     // Use fully qualified constants from StardewValley.Objects.Furniture
+                     if (furniture.furniture_type.Value != StardewValley.Objects.Furniture.rug && furniture.furniture_type.Value != StardewValley.Objects.Furniture.window) // Rugs and windows are generally passable
+                     {
+                         return false;
+                     }
+                 }
             }
-            
+
+            // Check for water/unwalkable paths explicitly marked
+            if (location.doesTileHaveProperty(x, y, "Water", "Back") != null ||
+                location.doesTileHaveProperty(x, y, "Unwalkable", "Back") != null)
+                return false;
+
+            // Check for NPC pathing obstacles
+            if (location.doesTileHavePropertyNoNull(x, y, "NoPath", "Buildings") == "T")
+                return false;
+
             // Check for special areas in mines/skull cavern/volcano where players shouldn't go
             if ((location.Name.Contains("Mine") || location.Name.Contains("SkullCave") || location.Name.Contains("Volcano")))
             {
                 // Check for edge cases like ladder positions, shafts, etc.
-                foreach (var ladder in location.objects.Pairs)
-                {
-                    if ((ladder.Value.Name.Contains("Ladder") || ladder.Value.Name.Contains("Shaft")) && ladder.Key == tileVector)
-                        return false; // Don't warp onto ladders or shafts
-                }
-                
+                if (location.objects.TryGetValue(tileVector, out StardewValley.Object mineObj) && (mineObj.Name.Contains("Ladder") || mineObj.Name.Contains("Shaft")))
+                    return false; // Don't warp onto ladders or shafts
+
                 // Check for deep water or lava
-                if (location.doesTileHaveProperty((int)tileVector.X, (int)tileVector.Y, "Water", "Back") != null ||
-                    location.doesTileHaveProperty((int)tileVector.X, (int)tileVector.Y, "WaterSource", "Back") != null ||
-                    location.doesTileHaveProperty((int)tileVector.X, (int)tileVector.Y, "Lava", "Back") != null)
+                if (location.doesTileHaveProperty(x, y, "WaterSource", "Back") != null ||
+                    location.doesTileHaveProperty(x, y, "Lava", "Back") != null)
                     return false;
             }
-            
-            // Check for edge tiles to avoid warping on map edges
+
+            // Check for edge tiles to avoid warping onto map edges or existing warps
             if (x <= 1 || y <= 1 || x >= location.map.Layers[0].LayerWidth - 2 || y >= location.map.Layers[0].LayerHeight - 2)
             {
                 // Check if this edge tile has a warp
-                if (location.isCollidingWithWarpOrDoor(new Rectangle(x * Game1.tileSize, y * Game1.tileSize, Game1.tileSize, Game1.tileSize)) != null)
-                    return false; // Don't allow warping onto warps - it's confusing
+                if (location.isCollidingWithWarpOrDoor(tileRect, Game1.player) != null)
+                    return false; // Don't allow warping onto warps
             }
-            
-            // Check for water/unwalkable paths
-            if (location.doesTileHaveProperty((int)tileVector.X, (int)tileVector.Y, "Water", "Back") != null ||
-                location.doesTileHaveProperty((int)tileVector.X, (int)tileVector.Y, "Unwalkable", "Back") != null)
-                return false;
-                
-            // Check for NPC pathing obstacles
-            if (location.doesTileHavePropertyNoNull((int)tileVector.X, (int)tileVector.Y, "NoPath", "Buildings") == "T")
-                return false;
-                
-            // Tile is valid for warping
+
+
+            // Tile is considered valid for warping
             return true;
         }
     }
