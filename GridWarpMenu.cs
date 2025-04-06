@@ -21,7 +21,7 @@ namespace WarpMod
         private readonly IModHelper Helper;
         private readonly LocationManager locationManager;
         private readonly MapRenderer mapRenderer;
-        
+
         // UI state
         private readonly List<ClickableComponent> locationButtons = new();
         private string selectedLocation = null;
@@ -40,73 +40,75 @@ namespace WarpMod
         private ClickableTextureComponent tabScrollUpButton;
         private ClickableTextureComponent tabScrollDownButton;
         private Rectangle tabsArea; // Area where tabs are drawn
-        
+
         // Configuration
         private readonly ModConfig config;
-        
-        // UI constants
-        private const int BUTTON_PADDING = 10;
-        private const int SIDEBAR_WIDTH = 300;
-        private const int TAB_WIDTH = 130;
-        private const int TAB_HEIGHT = 46; // Define tab height constant
-        private const int TAB_SPACING = 10; // Define tab spacing constant
-        private const float TITLE_SCALE = 1.2f;
-        private const float BUTTON_TEXT_SCALE = 0.9f;
-        
+
+        // UI constants - Adjusted for new design
+        private const int CATEGORY_BUTTON_WIDTH = 150; // Wider category buttons
+        private const int CATEGORY_BUTTON_HEIGHT = 50;
+        private const int CATEGORY_SPACING = 8;
+        private const int LOCATION_BUTTON_HEIGHT = 50; // Slightly smaller location buttons
+        private const int LOCATION_BUTTON_PADDING = 8;
+        private const int SIDEBAR_AREA_WIDTH = 180; // Area reserved for category buttons and padding
+        private const int CONTENT_PADDING = 20; // Padding around content areas
+        private const float TITLE_SCALE = 1.3f; // Slightly larger title
+        private const float CATEGORY_TEXT_SCALE = 1.0f;
+        private const float LOCATION_TEXT_SCALE = 0.9f;
+
         public GridWarpMenu(IModHelper helper, IMonitor monitor, ModConfig config = null)
             : base(Game1.viewport.Width / 2 - 600,
                   Game1.viewport.Height / 2 - 350,
-                  1200, 
+                  1200,
                   700,
                   true)
         {
             this.Monitor = monitor;
             this.Helper = helper;
             this.config = config ?? new ModConfig();
-            
+
             // Initialize utility classes - Pass the full config object
             this.locationManager = new LocationManager(monitor, this.config);
             this.mapRenderer = new MapRenderer(monitor, helper);
-            
+
             // Play open menu sound and initialize the UI
             Game1.playSound("bigSelect");
             Initialize();
         }
-        
+
         private void Initialize()
         {
-            // Define the area available for tabs
-            int tabsStartY = yPositionOnScreen + 80;
-            int tabsEndY = yPositionOnScreen + height - 40; // Leave space at bottom
-            tabsArea = new Rectangle(
-                xPositionOnScreen + borderWidth,
-                tabsStartY,
-                TAB_WIDTH,
-                tabsEndY - tabsStartY
+            // Define the area available for category buttons
+            int categoriesStartY = yPositionOnScreen + 70; // Position below title
+            int categoriesEndY = yPositionOnScreen + height - 30; // Leave space at bottom for scroll arrow
+            tabsArea = new Rectangle( // Renaming 'tabsArea' internally but keeping variable name for simplicity
+                xPositionOnScreen + CONTENT_PADDING,
+                categoriesStartY,
+                CATEGORY_BUTTON_WIDTH,
+                categoriesEndY - categoriesStartY
             );
 
-            // Calculate how many tabs can fit
-            maxVisibleTabs = tabsArea.Height / (TAB_HEIGHT + TAB_SPACING);
+            // Calculate how many category buttons can fit
+            maxVisibleTabs = tabsArea.Height / (CATEGORY_BUTTON_HEIGHT + CATEGORY_SPACING); // Use new constants
 
-            CreateTabs(); // Create all potential tab buttons
+            CreateTabs(); // Create all potential category buttons
             CreateScrollButtons();
-            UpdateVisibleTabs(); // Determine which tabs are initially visible
-            UpdateLocationButtons(); // Update locations for the default/current tab
+            UpdateVisibleTabs(); // Determine which are initially visible
+            UpdateLocationButtons(); // Update locations for the default/current category
         }
-        
-        private void CreateTabs()
+
+        private void CreateTabs() // Renamed internally to CreateCategoryButtons
         {
             tabButtons.Clear(); // Clear the main list
 
-            // Get location categories sorted correctly
             var categories = GetSortedCategories();
 
-            // Create a clickable component for each category, even if not initially visible
-            int currentY = tabsArea.Y; // Use tabsArea for positioning reference
+            // Create a clickable component for each category
+            // Bounds are initially relative to the potential full list
             foreach (var category in categories)
             {
-                // Store bounds relative to the potential full list, not screen position yet
-                var bounds = new Rectangle(tabsArea.X, currentY, TAB_WIDTH, TAB_HEIGHT);
+                // Placeholder bounds, will be updated in UpdateVisibleTabs
+                var bounds = new Rectangle(tabsArea.X, 0, CATEGORY_BUTTON_WIDTH, CATEGORY_BUTTON_HEIGHT);
                 tabButtons.Add(new ClickableComponent(bounds, category));
             }
         }
@@ -115,18 +117,16 @@ namespace WarpMod
         private List<string> GetSortedCategories()
         {
             var allCategories = locationManager.GetCategories();
-            // Use LocationManager.MOD_LOCATIONS_CATEGORY constant
-            string[] orderedTabs = { "Farm", "Town", "Beach", "Mountain", "Forest", "Desert", "Island", LocationManager.MOD_LOCATIONS_CATEGORY }; 
+            string[] orderedTabs = { "Farm", "Town", "Beach", "Mountain", "Forest", "Desert", "Island", LocationManager.MOD_LOCATIONS_CATEGORY };
 
             var sortedList = new List<string>();
 
             // Add standard tabs in order if they exist
             foreach (var standardTab in orderedTabs)
             {
-                // Handle split categories (e.g., "Town", "Town 2")
                 var matchingTabs = allCategories
                     .Where(c => c == standardTab || c.StartsWith(standardTab + " "))
-                    .OrderBy(c => c.Length).ThenBy(c => c) // Sort "Town", "Town 2", "Town 10"
+                    .OrderBy(c => c.Length).ThenBy(c => c)
                     .ToList();
                 sortedList.AddRange(matchingTabs);
             }
@@ -139,22 +139,23 @@ namespace WarpMod
 
         private void CreateScrollButtons()
         {
+            // Adjust scroll button positions based on the new category button layout
             tabScrollUpButton = new ClickableTextureComponent(
-                new Rectangle(tabsArea.X + (tabsArea.Width - Game1.tileSize) / 2, tabsArea.Y - TAB_HEIGHT / 2 - 5, Game1.tileSize, Game1.tileSize), // Position above tabs
+                new Rectangle(tabsArea.X + (tabsArea.Width - Game1.tileSize) / 2, tabsArea.Y - CATEGORY_BUTTON_HEIGHT / 2 - 10, Game1.tileSize, Game1.tileSize), // Position above category area
                 Game1.mouseCursors,
                 Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 12), // Up arrow
                 1f
             );
             tabScrollDownButton = new ClickableTextureComponent(
-                new Rectangle(tabsArea.X + (tabsArea.Width - Game1.tileSize) / 2, tabsArea.Y + tabsArea.Height + 5, Game1.tileSize, Game1.tileSize), // Position below tabs
+                new Rectangle(tabsArea.X + (tabsArea.Width - Game1.tileSize) / 2, tabsArea.Y + tabsArea.Height + 10, Game1.tileSize, Game1.tileSize), // Position below category area
                 Game1.mouseCursors,
                 Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 11), // Down arrow
                 1f
             );
         }
 
-        /// <summary>Updates which tabs are visible based on the scroll offset.</summary>
-        private void UpdateVisibleTabs()
+        /// <summary>Updates which category buttons are visible based on the scroll offset.</summary>
+        private void UpdateVisibleTabs() // Renamed internally to UpdateVisibleCategoryButtons
         {
             visibleTabButtons.Clear();
             canScrollTabsUp = tabScrollOffset > 0;
@@ -164,21 +165,20 @@ namespace WarpMod
             for (int i = 0; i < maxVisibleTabs; i++)
             {
                 int tabIndex = tabScrollOffset + i;
-                if (tabIndex >= tabButtons.Count) break; // Stop if we run out of tabs
+                if (tabIndex >= tabButtons.Count) break;
 
-                ClickableComponent tab = tabButtons[tabIndex];
-                // Update the bounds to the actual screen position for drawing and clicking
-                tab.bounds = new Rectangle(tabsArea.X, currentY, TAB_WIDTH, TAB_HEIGHT);
-                visibleTabButtons.Add(tab);
-                currentY += TAB_HEIGHT + TAB_SPACING;
+                ClickableComponent categoryButton = tabButtons[tabIndex];
+                // Update the bounds to the actual screen position
+                categoryButton.bounds = new Rectangle(tabsArea.X, currentY, CATEGORY_BUTTON_WIDTH, CATEGORY_BUTTON_HEIGHT);
+                visibleTabButtons.Add(categoryButton);
+                currentY += CATEGORY_BUTTON_HEIGHT + CATEGORY_SPACING;
             }
 
-            // Ensure the currentTab is still valid, select the first visible if not
+            // Ensure the currentTab (category) is still valid
             if (!visibleTabButtons.Any(t => t.name == currentTab) && visibleTabButtons.Any())
             {
                 currentTab = visibleTabButtons.First().name;
-                // Need to update location buttons if the tab changed automatically
-                UpdateLocationButtons();
+                UpdateLocationButtons(); // Update locations if category changed automatically
             }
         }
 
@@ -186,230 +186,242 @@ namespace WarpMod
         {
             locationButtons.Clear();
 
-            // Calculate positions
-            // Increase horizontal space between tabs and buttons
-            int buttonX = xPositionOnScreen + TAB_WIDTH + 40; // Increased from 24 to 40
-            int buttonWidth = SIDEBAR_WIDTH - TAB_WIDTH - 48; // Adjust width calculation if needed, maybe keep SIDEBAR_WIDTH relative?
-            buttonWidth = xPositionOnScreen + SIDEBAR_WIDTH - buttonX - 16; // Calculate width based on new start X and right padding
+            // Calculate positions for location buttons, starting to the right of the category area
+            int buttonStartX = xPositionOnScreen + SIDEBAR_AREA_WIDTH + CONTENT_PADDING;
+            int buttonAvailableWidth = (xPositionOnScreen + width - CONTENT_PADDING) - buttonStartX - (width - SIDEBAR_AREA_WIDTH - CONTENT_PADDING * 3); // Width allocated for map preview
+            buttonAvailableWidth = Math.Max(200, buttonAvailableWidth / 2 - LOCATION_BUTTON_PADDING); // Example: Use half the remaining space for buttons, ensure minimum width
 
-            int buttonHeight = 55;
-            int buttonY = yPositionOnScreen + 75;
-            
-            // Show locations for current tab
+            int buttonX = buttonStartX;
+            int buttonWidth = buttonAvailableWidth;
+            int buttonHeight = LOCATION_BUTTON_HEIGHT;
+            int buttonY = yPositionOnScreen + 70; // Align with top of category buttons
+
             var locations = locationManager.GetLocationsInCategory(currentTab);
             if (locations != null && locations.Any())
             {
                 int count = 0;
-                int maxLocationsToShow = config.MaxLocationsPerCategory;
-                
+                int maxLocationsToShow = config.MaxLocationsPerCategory; // Use config value
+
                 foreach (var location in locations.Take(maxLocationsToShow))
                 {
                     var bounds = new Rectangle(
                         buttonX,
-                        buttonY + (count * (buttonHeight + BUTTON_PADDING)),
+                        buttonY + (count * (buttonHeight + LOCATION_BUTTON_PADDING)),
                         buttonWidth,
                         buttonHeight
                     );
-                    
+
                     locationButtons.Add(new ClickableComponent(bounds, location));
                     count++;
                 }
             }
-            
-            // Setup map area - Ensure mapX respects the new sidebar spacing
-            int mapX = xPositionOnScreen + SIDEBAR_WIDTH + 24; // Keep map relative to the overall sidebar width for now
-            int mapY = yPositionOnScreen + 75;
-            int mapWidth = width - SIDEBAR_WIDTH - 48;
-            int mapHeight = height - 110;
-            
-            mapViewArea = new Rectangle(mapX, mapY, mapWidth, mapHeight);
 
-            // Calculate map dimensions for selected location
+            // Setup map area - Positioned to the right of the location buttons
+            int mapX = buttonStartX + buttonWidth + CONTENT_PADDING;
+            int mapY = yPositionOnScreen + 70; // Align with top of buttons
+            int mapWidth = (xPositionOnScreen + width - CONTENT_PADDING) - mapX;
+            int mapHeight = height - 100; // Adjust height as needed
+
+            // Use a slightly smaller area for the map itself to allow for padding/border
+            Rectangle innerMapBounds = new Rectangle(mapX + 10, mapY + 10, mapWidth - 20, mapHeight - 20);
+
             if (showingMap && currentLocation?.Map != null)
             {
-                // Use a slightly smaller area for the map itself to allow for padding/border
-                Rectangle innerMapBounds = new Rectangle(mapX + 10, mapY + 10, mapWidth - 20, mapHeight - 20);
                 mapViewArea = mapRenderer.CalculateMapViewArea(
-                    currentLocation.Map.DisplayWidth, 
+                    currentLocation.Map.DisplayWidth,
                     currentLocation.Map.DisplayHeight,
                     innerMapBounds
                 );
+            }
+            else
+            {
+                // Default map area when no map is shown (for instructions)
+                mapViewArea = innerMapBounds;
             }
         }
 
         public override void draw(SpriteBatch b)
         {
-            // Draw semi-transparent background
-            b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.7f);
-            DrawMenuBox(b);
-            
-            // Draw title - Move slightly higher
+            // Draw a darker, slightly textured background for the "atlas" feel
+            DrawMenuBackground(b); // New method for background
+
+            // Draw title - Centered, slightly higher
             string title = "Magic Atlas";
             Vector2 titleSize = Game1.dialogueFont.MeasureString(title) * TITLE_SCALE;
-            Vector2 titlePos = new Vector2(xPositionOnScreen + width / 2 - titleSize.X / 2, yPositionOnScreen + 20); // Changed from 30 to 20
-            b.DrawString(Game1.dialogueFont, title, titlePos, Game1.textColor, 0f, Vector2.Zero, TITLE_SCALE, SpriteEffects.None, 1f);
-            
-            // Draw VISIBLE tabs
-            foreach (var tab in visibleTabButtons) // Iterate through visible tabs only
+            Vector2 titlePos = new Vector2(xPositionOnScreen + width / 2 - titleSize.X / 2, yPositionOnScreen + 25); // Adjusted Y
+            b.DrawString(Game1.dialogueFont, title, titlePos, Game1.textColor * 0.9f, 0f, Vector2.Zero, TITLE_SCALE, SpriteEffects.None, 1f);
+
+            // Draw VISIBLE category buttons
+            foreach (var categoryButton in visibleTabButtons)
             {
-                bool isSelected = tab.name == currentTab;
-                DrawTab(b, tab.bounds, tab.name, isSelected, tab.containsPoint(Game1.getMouseX(), Game1.getMouseY()));
+                bool isSelected = categoryButton.name == currentTab;
+                DrawCategoryButton(b, categoryButton.bounds, categoryButton.name, isSelected, categoryButton.containsPoint(Game1.getMouseX(), Game1.getMouseY()));
             }
 
             // Draw scroll buttons if needed
-            if (canScrollTabsUp)
-            {
-                tabScrollUpButton.draw(b);
-            }
-            if (canScrollTabsDown)
-            {
-                tabScrollDownButton.draw(b);
-            }
-            
+            if (canScrollTabsUp) tabScrollUpButton.draw(b, Color.White * (tabScrollUpButton.containsPoint(Game1.getMouseX(), Game1.getMouseY()) ? 1f : 0.7f), 0.9f);
+            if (canScrollTabsDown) tabScrollDownButton.draw(b, Color.White * (tabScrollDownButton.containsPoint(Game1.getMouseX(), Game1.getMouseY()) ? 1f : 0.7f), 0.9f);
+
             // Draw location buttons
             foreach (var button in locationButtons)
             {
                 bool isSelected = button.name == selectedLocation;
-                DrawButton(b, button.bounds, locationManager.GetDisplayName(button.name), 
+                DrawLocationButton(b, button.bounds, locationManager.GetDisplayName(button.name),
                     isSelected, button.containsPoint(Game1.getMouseX(), Game1.getMouseY()));
             }
-            
-            // Draw map or instructions
-            if (showingMap && selectedLocation != null && currentLocation != null)
-            {
-                DrawMap(b);
-            }
-            else
-            {
-                DrawInstructions(b);
-            }
-            
+
+            // Draw map or instructions in the map area
+            DrawMapAreaContent(b);
+
             // Draw cursor
             drawMouse(b);
         }
-        
-        private void DrawMenuBox(SpriteBatch b)
-        {
-            drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
-                xPositionOnScreen, yPositionOnScreen, width, height, Color.White);
-        }
-        
-        private void DrawTab(SpriteBatch b, Rectangle bounds, string text, bool selected, bool hovered)
-        {
-            // Use standard Stardew Valley tab textures/colors
-            Color baseColor = selected ? Color.White : Color.Gray;
-            Color textColor = selected ? Game1.textColor : Color.DarkGray;
-            float transparency = hovered ? 1f : 0.85f;
 
-            // Draw tab background
-            IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(16, 368, 16, 16), 
-                bounds.X, bounds.Y, bounds.Width, bounds.Height, 
+        // New method to draw the menu background
+        private void DrawMenuBackground(SpriteBatch b)
+        {
+            // Draw a simple dark semi-transparent background first
+            b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.75f);
+
+            // Draw the main menu box using a slightly darker/textured look if possible
+            // Using the standard texture box for now, but with a darker tint
+            Color menuBackgroundColor = new Color(50, 40, 30) * 0.95f; // Dark brown tint
+            drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
+                xPositionOnScreen, yPositionOnScreen, width, height, menuBackgroundColor, 1f, true); // Use drawShadow = true
+        }
+
+        // Replaces DrawTab
+        private void DrawCategoryButton(SpriteBatch b, Rectangle bounds, string text, bool selected, bool hovered)
+        {
+            // Use a simpler, darker style for category buttons
+            Color baseColor = selected ? new Color(180, 150, 100) : (hovered ? new Color(100, 80, 60) : new Color(80, 60, 40)); // Earthy tones
+            Color textColor = selected ? Color.Wheat : (hovered ? Color.White * 0.9f : Color.Tan * 0.8f);
+            float transparency = 1f; // No extra transparency needed
+
+            // Draw button background (simple box)
+            IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), // A simple square texture piece
+                bounds.X, bounds.Y, bounds.Width, bounds.Height,
                 baseColor * transparency, 4f, false);
 
-            // Draw tab text - centered
-            Vector2 textSize = Game1.smallFont.MeasureString(text);
+            // Draw text - centered
+            float scale = CATEGORY_TEXT_SCALE;
+            Vector2 textSize = Game1.dialogueFont.MeasureString(text) * scale; // Use dialogueFont for categories
+
+            // Adjust scale if text doesn't fit
+            if (textSize.X > bounds.Width - 16) // 8px padding
+            {
+                scale *= (bounds.Width - 16) / textSize.X;
+                textSize = Game1.dialogueFont.MeasureString(text) * scale;
+            }
+
             Vector2 textPos = new Vector2(
                 bounds.X + (bounds.Width - textSize.X) / 2,
                 bounds.Y + (bounds.Height - textSize.Y) / 2
             );
-            
-            b.DrawString(Game1.smallFont, text, textPos, textColor * transparency);
-        }
-        
-        private void DrawButton(SpriteBatch b, Rectangle bounds, string text, bool selected, bool hovered)
-        {
-            // Use standard button textures/colors
-            Color baseColor = Color.White;
-            Color textColor = Game1.textColor;
-            float transparency = hovered ? 1f : 0.9f;
-            float scale = BUTTON_TEXT_SCALE;
 
-            // Draw button background
-            IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(432, 439, 9, 9), 
-                bounds.X, bounds.Y, bounds.Width, bounds.Height, 
-                baseColor * transparency, 4f, false);
+            b.DrawString(Game1.dialogueFont, text, textPos, textColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
 
-            // Draw selection indicator if selected
+            // Add a subtle selection indicator (e.g., underline or side bar)
             if (selected)
             {
-                IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(375, 357, 3, 3), 
-                    bounds.X + 4, bounds.Y + 4, bounds.Width - 8, bounds.Height - 8, 
-                    Color.White * 0.7f, 4f, false);
+                Rectangle indicatorRect = new Rectangle(bounds.X - 5, bounds.Y + 4, 4, bounds.Height - 8); // Left side bar
+                b.Draw(Game1.staminaRect, indicatorRect, Color.Wheat * 0.8f);
+            }
+        }
+
+        // Replaces DrawButton
+        private void DrawLocationButton(SpriteBatch b, Rectangle bounds, string text, bool selected, bool hovered)
+        {
+            // Use a very subtle background for location buttons
+            Color baseColor = hovered ? new Color(70, 60, 50) * 0.6f : Color.Transparent; // Slightly visible on hover
+            Color textColor = selected ? Color.Gold : (hovered ? Color.Wheat : Game1.textColor * 0.85f); // Highlight selected, brighten hovered
+            float scale = LOCATION_TEXT_SCALE;
+
+            // Draw subtle background on hover
+            if (hovered)
+            {
+                b.Draw(Game1.staminaRect, bounds, baseColor);
+            }
+
+            // Draw selection indicator (more prominent)
+            if (selected)
+            {
+                b.Draw(Game1.staminaRect, bounds, new Color(90, 80, 60) * 0.7f); // Slightly brighter background
             }
 
             // Draw button text - vertically centered, left-aligned with padding
             Vector2 textSize = Game1.smallFont.MeasureString(text) * scale;
             // Adjust scale if text is too wide
-            if (textSize.X > bounds.Width - 24) // 12px padding on each side
+            if (textSize.X > bounds.Width - 16) // 8px padding each side
             {
-                scale *= (bounds.Width - 24) / textSize.X;
+                scale *= (bounds.Width - 16) / textSize.X;
                 textSize = Game1.smallFont.MeasureString(text) * scale;
             }
             Vector2 textPos = new Vector2(
-                bounds.X + 12, // Left padding
+                bounds.X + 8, // Left padding
                 bounds.Y + (bounds.Height - textSize.Y) / 2
             );
-            
-            b.DrawString(Game1.smallFont, text, textPos, textColor * transparency, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
-        }
-        
-        private void DrawMap(SpriteBatch b)
-        {   
-            // Draw map container box
-            int mapContainerX = xPositionOnScreen + SIDEBAR_WIDTH + 24;
-            int mapContainerY = yPositionOnScreen + 75;
-            int mapContainerWidth = width - SIDEBAR_WIDTH - 48;
-            int mapContainerHeight = height - 110;
-            IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
-                mapContainerX, mapContainerY, mapContainerWidth, mapContainerHeight, 
-                Color.White * 0.9f); 
-            
-            // Draw location name above the map - Ensure it doesn't overlap main title
-            string locationName = locationManager.GetDisplayName(selectedLocation);
-            Vector2 nameSize = Game1.dialogueFont.MeasureString(locationName);
-            Vector2 namePos = new Vector2(
-                mapContainerX + (mapContainerWidth - nameSize.X) / 2,
-                mapContainerY - nameSize.Y - 15 // Increased spacing slightly more (from 12 to 15)
-            );
-            // Ensure name doesn't go too high and overlap main title (adjust minimum Y if needed)
-            namePos.Y = Math.Max(namePos.Y, yPositionOnScreen + 55); // Adjusted minimum Y slightly (from 50 to 55)
 
-            b.DrawString(Game1.dialogueFont, locationName, namePos, Game1.textColor);
-            
-            // Draw instruction text below the map - Move slightly higher and ensure centering
-            string instructionText = "Click on the map to warp to a specific spot";
-            Vector2 instructionSize = Game1.smallFont.MeasureString(instructionText);
-            Vector2 instructionPos = new Vector2(
-                mapContainerX + (mapContainerWidth - instructionSize.X) / 2,
-                mapContainerY + mapContainerHeight + 5 // Position below the container, slightly less padding (from 8 to 5)
-            );
-            // Ensure it doesn't go below the menu box bottom edge
-            instructionPos.Y = Math.Min(instructionPos.Y, yPositionOnScreen + height - instructionSize.Y - 15); 
-
-            b.DrawString(Game1.smallFont, instructionText, instructionPos, Game1.textColor * 0.8f);
-            
-            // Draw the map itself within the calculated mapViewArea
-            mapRenderer.DrawMapThumbnail(b, currentLocation, mapViewArea);
+            b.DrawString(Game1.smallFont, text, textPos, textColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
         }
-        
-        private void DrawInstructions(SpriteBatch b)
+
+        // Renamed DrawMap to DrawMapAreaContent for clarity
+        private void DrawMapAreaContent(SpriteBatch b)
         {
-            // Draw instruction text centered in the map area
-            string instruction = "Select a location";
-            Vector2 textSize = Game1.dialogueFont.MeasureString(instruction);
-            // Use the map container bounds for centering
-            int mapContainerX = xPositionOnScreen + SIDEBAR_WIDTH + 24;
-            int mapContainerY = yPositionOnScreen + 75;
-            int mapContainerWidth = width - SIDEBAR_WIDTH - 48;
-            int mapContainerHeight = height - 110;
-            Vector2 position = new Vector2(
-                mapContainerX + (mapContainerWidth - textSize.X) / 2,
-                mapContainerY + (mapContainerHeight - textSize.Y) / 2
+            // Draw a subtle container for the map/instructions area
+            Rectangle mapContainerBounds = new Rectangle(
+                mapViewArea.X - 10, // Adjust based on innerMapBounds padding used in UpdateLocationButtons
+                mapViewArea.Y - 10,
+                mapViewArea.Width + 20,
+                mapViewArea.Height + 20
             );
-            
-            b.DrawString(Game1.dialogueFont, instruction, position, Game1.textColor * 0.8f);
+            IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
+                mapContainerBounds.X, mapContainerBounds.Y, mapContainerBounds.Width, mapContainerBounds.Height,
+                new Color(40, 30, 20) * 0.8f, 1f, false); // Darker, slightly transparent box
+
+            if (showingMap && selectedLocation != null && currentLocation != null)
+            {
+                // Draw location name above the map
+                string locationName = locationManager.GetDisplayName(selectedLocation);
+                Vector2 nameSize = Game1.dialogueFont.MeasureString(locationName);
+                Vector2 namePos = new Vector2(
+                    mapContainerBounds.X + (mapContainerBounds.Width - nameSize.X) / 2,
+                    mapContainerBounds.Y - nameSize.Y - 8 // Position above the container
+                );
+                b.DrawString(Game1.dialogueFont, locationName, namePos, Color.Wheat); // Use a thematic color
+
+                // Draw the map itself within the calculated mapViewArea
+                mapRenderer.DrawMapThumbnail(b, currentLocation, mapViewArea);
+
+                // Draw instruction text below the map
+                string instructionText = "Click map to warp to a specific spot";
+                Vector2 instructionSize = Game1.smallFont.MeasureString(instructionText);
+                Vector2 instructionPos = new Vector2(
+                    mapContainerBounds.X + (mapContainerBounds.Width - instructionSize.X) / 2,
+                    mapContainerBounds.Y + mapContainerBounds.Height + 5 // Position below the container
+                );
+                b.DrawString(Game1.smallFont, instructionText, instructionPos, Game1.textColor * 0.7f);
+            }
+            else
+            {
+                // Draw placeholder instructions when no map is shown
+                DrawInstructions(b, mapContainerBounds);
+            }
         }
-        
+
+        // Updated DrawInstructions to accept bounds
+        private void DrawInstructions(SpriteBatch b, Rectangle containerBounds)
+        {
+            string instruction = "Select a category, then a location";
+            Vector2 textSize = Game1.dialogueFont.MeasureString(instruction);
+            Vector2 position = new Vector2(
+                containerBounds.X + (containerBounds.Width - textSize.X) / 2,
+                containerBounds.Y + (containerBounds.Height - textSize.Y) / 2
+            );
+
+            b.DrawString(Game1.dialogueFont, instruction, position, Game1.textColor * 0.6f); // Dimmer text
+        }
+
         public override void receiveLeftClick(int x, int y, bool playSound = true)
         {
             // Handle outside click to close menu
@@ -419,8 +431,8 @@ namespace WarpMod
                 Game1.playSound("bigDeSelect");
                 return;
             }
-            
-            // Handle tab clicks (check only visible tabs)
+
+            // Handle category button clicks (check only visible buttons)
             foreach (var tab in visibleTabButtons)
             {
                 if (tab.containsPoint(x, y))
@@ -432,7 +444,7 @@ namespace WarpMod
                         showingMap = false;
                         currentLocation = null;
                         Game1.playSound("smallSelect");
-                        UpdateLocationButtons(); // Update locations for the new tab
+                        UpdateLocationButtons(); // Update locations for the new category
                     }
                     return; // Click handled
                 }
@@ -451,7 +463,7 @@ namespace WarpMod
                 Game1.playSound("shwip");
                 return;
             }
-            
+
             // Handle location button clicks
             foreach (var button in locationButtons)
             {
@@ -460,11 +472,11 @@ namespace WarpMod
                     selectedLocation = button.name;
                     showingMap = true;
                     currentLocation = locationManager.LoadLocation(selectedLocation);
-                    
+
                     if (currentLocation != null)
                     {
                         UpdateLocationButtons(); // Recalculate map area
-                        Game1.playSound("dwop"); // Changed sound for selecting an item (was drumkit6)
+                        Game1.playSound("crystal"); // Changed sound for selecting an item (was dwop)
                     }
                     else
                     {
@@ -476,7 +488,7 @@ namespace WarpMod
                     return;
                 }
             }
-            
+
             // Handle map click for warping
             if (showingMap && mapViewArea.Contains(x, y) && selectedLocation != null && currentLocation != null)
             {
@@ -538,7 +550,7 @@ namespace WarpMod
             // Ensure scrolling stops when the last item is fully visible
             if (tabButtons.Count > maxVisibleTabs) // Only clamp if scrolling is possible
             {
-                newOffset = Math.Min(tabButtons.Count - maxVisibleTabs, newOffset); 
+                newOffset = Math.Min(tabButtons.Count - maxVisibleTabs, newOffset);
             }
             else
             {
@@ -551,7 +563,7 @@ namespace WarpMod
                 UpdateVisibleTabs(); // Update which tabs are shown
             }
         }
-        
+
         public override void receiveRightClick(int x, int y, bool playSound = true)
         {
             // Right click exits the menu
@@ -559,7 +571,7 @@ namespace WarpMod
                 Game1.playSound("bigDeSelect");
             exitThisMenu();
         }
-        
+
         private void WarpToLocation(string locationName, int tileX, int tileY)
         {
             try
@@ -569,10 +581,10 @@ namespace WarpMod
                 {
                     CreateWarpEffect();
                 }
-                
+
                 // Close menu
                 exitThisMenu(playSound: false);
-                
+
                 // Warp to location
                 if (locationManager.WarpToLocation(locationName, tileX, tileY))
                 {
@@ -592,7 +604,7 @@ namespace WarpMod
                 Game1.addHUDMessage(new HUDMessage("Error warping to location", HUDMessage.error_type));
             }
         }
-        
+
         /// <summary>
         /// Create visual effect when warping
         /// </summary>
