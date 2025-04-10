@@ -186,29 +186,40 @@ namespace WarpMod
         {
             locationButtons.Clear();
 
-            // Calculate positions for location buttons, starting to the right of the category area
-            int buttonStartX = xPositionOnScreen + SIDEBAR_AREA_WIDTH + CONTENT_PADDING;
-            int buttonAvailableWidth = (xPositionOnScreen + width - CONTENT_PADDING) - buttonStartX - (width - SIDEBAR_AREA_WIDTH - CONTENT_PADDING * 3); // Width allocated for map preview
-            buttonAvailableWidth = Math.Max(200, buttonAvailableWidth / 2 - LOCATION_BUTTON_PADDING); // Example: Use half the remaining space for buttons, ensure minimum width
+            // --- Layout Calculation ---
+            int sidebarWidth = SIDEBAR_AREA_WIDTH + CONTENT_PADDING; // Width of the category sidebar area
+            int availableContentWidth = width - sidebarWidth - CONTENT_PADDING * 2; // Total width for buttons + map
 
-            int buttonX = buttonStartX;
-            int buttonWidth = buttonAvailableWidth;
-            int buttonHeight = LOCATION_BUTTON_HEIGHT;
+            // Prioritize map width: Allocate a larger portion (e.g., 60-65%) of the available width to the map
+            int mapAreaMinWidth = 400; // Minimum width for the map area
+            int mapAreaWidth = Math.Max(mapAreaMinWidth, (int)(availableContentWidth * 0.65)); // Give map ~65% of space
+
+            // Calculate button width based on remaining space
+            int buttonAreaWidth = availableContentWidth - mapAreaWidth - CONTENT_PADDING; // Subtract map width and padding between buttons/map
+            int buttonWidth = Math.Max(150, buttonAreaWidth); // Ensure a minimum button width
+
+            // Define starting positions
+            int buttonStartX = xPositionOnScreen + sidebarWidth;
+            int mapX = buttonStartX + buttonWidth + CONTENT_PADDING; // Map starts after buttons and padding
+
             int buttonY = yPositionOnScreen + 70; // Align with top of category buttons
+            int mapY = buttonY; // Align map top with button top
+            int mapHeight = height - 100; // Map height (leave space for title/instructions)
 
+            // --- Location Buttons ---
             var locations = locationManager.GetLocationsInCategory(currentTab);
             if (locations != null && locations.Any())
             {
                 int count = 0;
-                int maxLocationsToShow = config.MaxLocationsPerCategory; // Use config value
+                int maxLocationsToShow = config.MaxLocationsPerCategory;
 
                 foreach (var location in locations.Take(maxLocationsToShow))
                 {
                     var bounds = new Rectangle(
-                        buttonX,
-                        buttonY + (count * (buttonHeight + LOCATION_BUTTON_PADDING)),
-                        buttonWidth,
-                        buttonHeight
+                        buttonStartX, // Use calculated start X
+                        buttonY + (count * (LOCATION_BUTTON_HEIGHT + LOCATION_BUTTON_PADDING)),
+                        buttonWidth,  // Use calculated button width
+                        LOCATION_BUTTON_HEIGHT
                     );
 
                     locationButtons.Add(new ClickableComponent(bounds, location));
@@ -216,36 +227,23 @@ namespace WarpMod
                 }
             }
 
-            // Setup map area - Positioned to the right of the location buttons
-            int mapX = buttonStartX + buttonWidth + CONTENT_PADDING;
-            int mapY = yPositionOnScreen + 70; // Align with top of buttons
-            int mapWidth = (xPositionOnScreen + width - CONTENT_PADDING) - mapX;
-            int mapHeight = height - 100; // Adjust height as needed
-
-            // Use a slightly smaller area for the map itself to allow for padding/border
-            Rectangle innerMapBounds = new Rectangle(mapX + 10, mapY + 10, mapWidth - 20, mapHeight - 20);
-
-            // Special handling for Desert map width
-            if (showingMap && currentLocation?.Name == "Desert")
-            {
-                // Make the bounds wider for the desert map calculation, potentially reducing height slightly if needed
-                int desertMapWidth = mapWidth - 5; // Use slightly more width
-                int desertMapHeight = mapHeight - 40; // Reduce height to compensate if necessary
-                innerMapBounds = new Rectangle(mapX + 5, mapY + 20, desertMapWidth, desertMapHeight);
-            }
+            // --- Map Area Calculation ---
+            // Define the container for the map rendering (slightly smaller than the allocated map area)
+            Rectangle innerMapBounds = new Rectangle(mapX + 10, mapY + 10, mapAreaWidth - 20, mapHeight - 20);
 
             if (showingMap && currentLocation?.Map != null)
             {
+                // Calculate the final scaled map view area using the renderer
                 mapViewArea = mapRenderer.CalculateMapViewArea(
                     currentLocation.Map.DisplayWidth,
                     currentLocation.Map.DisplayHeight,
-                    innerMapBounds // Use potentially adjusted bounds
+                    innerMapBounds // Use the calculated inner bounds
                 );
             }
             else
             {
                 // Default map area when no map is shown (for instructions)
-                mapViewArea = innerMapBounds;
+                mapViewArea = innerMapBounds; // Use the inner bounds for the placeholder too
             }
         }
 
@@ -338,8 +336,9 @@ namespace WarpMod
         private void DrawLocationButton(SpriteBatch b, Rectangle bounds, string text, bool selected, bool hovered)
         {
             // Use a very subtle background for location buttons
-            Color baseColor = hovered ? new Color(70, 60, 50) * 0.6f : Color.Transparent; // Slightly visible on hover
-            Color textColor = selected ? Color.Gold : (hovered ? Color.Wheat : Game1.textColor * 0.85f); // Highlight selected, brighten hovered
+            Color baseColor = hovered ? new Color(90, 80, 70) * 0.7f : Color.Transparent; // Slightly more visible hover
+            // Use brighter text colors overall - Ensure selected is bright (Yellow)
+            Color textColor = selected ? Color.Yellow : (hovered ? Color.White : Color.Wheat * 0.9f); // Bright yellow for selected, White for hover, Wheat for default
             float scale = LOCATION_TEXT_SCALE;
 
             // Draw subtle background on hover
@@ -348,10 +347,11 @@ namespace WarpMod
                 b.Draw(Game1.staminaRect, bounds, baseColor);
             }
 
-            // Draw selection indicator (more prominent)
+            // Draw selection indicator (more prominent background)
             if (selected)
             {
-                b.Draw(Game1.staminaRect, bounds, new Color(90, 80, 60) * 0.7f); // Slightly brighter background
+                // Use a slightly lighter brown for selected background
+                b.Draw(Game1.staminaRect, bounds, new Color(110, 100, 80) * 0.8f);
             }
 
             // Draw button text - vertically centered, left-aligned with padding
@@ -367,7 +367,9 @@ namespace WarpMod
                 bounds.Y + (bounds.Height - textSize.Y) / 2
             );
 
-            b.DrawString(Game1.smallFont, text, textPos, textColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+            // Draw text with shadow for better contrast if needed (optional)
+            // Utility.drawTextWithShadow(b, text, Game1.smallFont, textPos, textColor, scale); // Example using shadow
+            b.DrawString(Game1.smallFont, text, textPos, textColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f); // Drawing without shadow for now
         }
 
         // Renamed DrawMap to DrawMapAreaContent for clarity

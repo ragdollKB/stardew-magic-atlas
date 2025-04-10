@@ -17,6 +17,7 @@ namespace WarpMod
         private ModConfig config;
         private bool mapWarpEnabled = true; // Enable map warping by default
         private MapRenderer mapRenderer; // Store reference for resource cleanup
+        private FountainHandler fountainHandler; // Handler for fountain interaction with atlas
 
         /// <summary>The mod entry point, called after the mod is first loaded.</summary>
         /// <param name="helper">Provides simplified APIs for writing mods.</param>
@@ -28,6 +29,9 @@ namespace WarpMod
             
             // Initialize the map renderer
             this.mapRenderer = new MapRenderer(this.Monitor, helper);
+            
+            // Initialize the Magic Atlas item
+            MagicAtlasItem.Initialize(helper, this.Monitor, this.config);
 
             // Hook into events
             helper.Events.Input.ButtonPressed += this.OnButtonPressed;
@@ -37,6 +41,9 @@ namespace WarpMod
             helper.Events.Display.WindowResized += this.OnWindowResized;
             helper.Events.GameLoop.DayStarted += this.OnDayStarted;
             helper.Events.GameLoop.DayEnding += this.OnDayEnding;
+            
+            // Register the Magic Atlas item for serialization (so it loads properly)
+            helper.ConsoleCommands.Add("give_atlas", "Gives you the Magic Atlas item for testing.", this.GiveAtlasCommand);
 
             this.Monitor.Log("Magic Atlas mod initialized", LogLevel.Info);
         }
@@ -54,12 +61,31 @@ namespace WarpMod
                 return;
                 
             // Check if warp key is pressed (using config binding)
-            if (this.config.WarpKey.JustPressed())
+            if (this.config.WarpKey.JustPressed() && (this.config.AllowHotkeyWithoutItem || MagicAtlasItem.HasBeenRead()))
             {
                 // Open our custom menu
                 Game1.activeClickableMenu = new GridWarpMenu(this.Helper, this.Monitor, this.config);
                 Helper.Input.Suppress(e.Button);
             }
+        }
+        
+        /// <summary>Debug command to give the player an atlas</summary>
+        private void GiveAtlasCommand(string command, string[] args)
+        {
+            if (!Context.IsWorldReady)
+            {
+                this.Monitor.Log("You need to load a save first!", LogLevel.Error);
+                return;
+            }
+            
+            var atlas = new MagicAtlasItem();
+            
+            if (Game1.player.addItemToInventory(atlas) != null)
+            {
+                Game1.createItemDebris(atlas, Game1.player.Position, -1);
+            }
+            
+            this.Monitor.Log("Magic Atlas added to inventory!", LogLevel.Info);
         }
 
         /// <summary>Called when a new day starts</summary>
@@ -72,6 +98,9 @@ namespace WarpMod
         {
             // Refresh settings when save is loaded
             this.mapWarpEnabled = this.config.MapWarpEnabled;
+            
+            // Initialize the fountain handler after save is loaded
+            this.fountainHandler = new FountainHandler(this.Helper, this.Monitor, this.config);
             
             // Check if map files exist in assets folder
             CheckMapAssets();
@@ -92,6 +121,13 @@ namespace WarpMod
             else
             {
                 this.Monitor.Log("Map assets folder not found. Maps may not display correctly.", LogLevel.Warn);
+            }
+            
+            // Also check for required item assets
+            string itemsFolder = Path.Combine(this.Helper.DirectoryPath, "assets", "items");
+            if (!Directory.Exists(itemsFolder) || !File.Exists(Path.Combine(itemsFolder, "MagicAtlas.png")))
+            {
+                this.Monitor.Log("Magic Atlas item texture not found. Please add the texture at assets/items/MagicAtlas.png", LogLevel.Warn);
             }
         }
         
@@ -152,7 +188,7 @@ namespace WarpMod
             configMenu.AddBoolOption(
                 mod: this.ModManifest,
                 name: () => "Enable Grid Warp",
-                tooltip: () => "Whether to enable warping using the grid menu (K key).",
+                tooltip: () => "Whether to enable warping using the grid menu.",
                 getValue: () => this.config.MapWarpEnabled,
                 setValue: value => {
                     this.config.MapWarpEnabled = value;
@@ -160,11 +196,20 @@ namespace WarpMod
                 }
             );
             
+            // Make this option more clear and move it higher in the settings
+            configMenu.AddBoolOption(
+                mod: this.ModManifest,
+                name: () => "Use Atlas Without Item (K Key)",
+                tooltip: () => "If enabled, allows opening the atlas menu by pressing the Warp Key (K) without having the Magic Atlas in inventory. If disabled, you must find the Magic Atlas item at the town fountain.",
+                getValue: () => this.config.AllowHotkeyWithoutItem,
+                setValue: value => this.config.AllowHotkeyWithoutItem = value
+            );
+            
             // Add keybind option
             configMenu.AddKeybindList(
                 mod: this.ModManifest,
                 name: () => "Warp Key",
-                tooltip: () => "The key to press to open the warp menu.",
+                tooltip: () => "The key to press to open the warp menu (if using the atlas without item is enabled).",
                 getValue: () => this.config.WarpKey,
                 setValue: value => this.config.WarpKey = value
             );

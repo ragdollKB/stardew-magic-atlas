@@ -20,6 +20,11 @@ namespace WarpMod
         public bool MapWarpEnabled { get; set; } = true; // Add missing property used in ModEntry
 
         /// <summary>
+        /// Whether to allow using the warp key without having the Magic Atlas item
+        /// </summary>
+        public bool AllowHotkeyWithoutItem { get; set; } = false; // Default to false to enforce using the item
+
+        /// <summary>
         /// Whether to show locations from Stardew Valley Expanded (SVE)
         /// </summary>
         public bool ShowSVELocations { get; set; } = true;
