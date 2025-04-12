@@ -1,7 +1,7 @@
 General Instructions 
 - Always attempt a build when completing code changes
-- When The buidl is successful, update teh CHANGELOG.md 
-- Check to make sure the README.md needs to be updated. 
+- When The build is successful, update the CHANGELOG.md 
+- Check to make sure if the README.md needs to be updated. 
 
 The unpacked game assets are in the game_folder\Stardew Valley\Content (unpacked) and are a good palce to look for assets as they are the same in the actual game. 
 
@@ -11,7 +11,6 @@ Tracking changes to a value
 
 Mods often need to know when a value changed. If there's no SMAPI event for the value, you can create a private field to track the value, and update it using the update tick event.
 
-See Modding:Modder Guide/APIs/Events#Change monitoring for an example.
 
 Items
 
@@ -35,10 +34,12 @@ You can spawn an item on the ground with the GameLocation class's dropObject met
 
  // Concrete code for spawning:
  Game1.getLocationFromName("Farm").dropObject(new StardewValley.Object(itemId, 1, false, -1, 0), new Vector2(x, y) * 64f, Game1.viewport, true, (Farmer)null);
+
 Add an item to an inventory
 
 //You can add items found in ObjectInformation using:
     Game1.player.addItemByMenuIfNecessary((Item)new StardewValley.Object(int parentSheetIndex, int initialStack, [bool isRecipe = false], [int price = -1], [int quality = 0]));
+
 Another example:
 
     // Add a weapon directly into player's inventory
@@ -46,7 +47,6 @@ Another example:
     Item weapon = new MeleeWeapon(WEAP_ID);  // MeleeWeapon is a class in StardewValley.Tools
     Game1.player.addItemByMenuIfNecessary(weapon);
 
-    // Note: This code WORKS.
 Remove an item from an inventory
 
 This is dependent on the inventory - rarely will you be calling this directly, as the game has functions for this for the Player, located in Farmer (in the main namespace).
@@ -54,8 +54,6 @@ This is dependent on the inventory - rarely will you be calling this directly, a
 To do so, in most situations, just call .removeItemFromInventory(Item)
 
 Locations
-
-See Game Fundamentals#GameLocation.
 
 Get all locations
 
@@ -68,8 +66,6 @@ Utility.ForAllLocations((GameLocation location) =>
 Note that farmhands in multiplayer can't see all locations; see GetActiveLocations instead.
 
 Edit a location map
-
-See Modding:Maps.
 
 Position
 
@@ -128,8 +124,6 @@ All of the above can be done with an AssetRequested event or Content Patcher. If
 User-interface (UI)
 
 The User-interface (UI) is a collection of separate elements which make up the HUD and occasional popups.
-
-//TODO: This section needs to be expanded. Please contribute if you have knowledge in this area.
 
 Banner message
 
@@ -206,7 +200,6 @@ using StardewValley.Menus;  // This is where the DialogueBox class lives
 
 string message = "This looks like a typewriter ... ^But it's not ...^It's a computer.^";
 Game1.activeClickableMenu = new DialogueBox(message);
-// TODO: More examples with choices
 
 To utilise options, you are better off using createQuestionDialogue.
 
@@ -233,7 +226,7 @@ public void DialogueSet(Farmer who, string dialogue_id)
 }
 Mail
 
-If you are new to SMAPI or to modding Stardew Valley in general, sending a simple letter to the player's mailbox is a great place to start your learning journey. You will be treated to some simple to understand code and concepts, as well as receive some instant gratification in the form of a tangible, in-game letter that you can see in action. If the examples in this section fall short, there are many folks available to assist you on the Discord channel (//TODO: Provide link).
+If you are new to SMAPI or to modding Stardew Valley in general, sending a simple letter to the player's mailbox is a great place to start your learning journey. You will be treated to some simple to understand code and concepts, as well as receive some instant gratification in the form of a tangible, in-game letter that you can see in action.
 
 Mail content
 
@@ -277,7 +270,6 @@ namespace MyMod
             // %item object 388 50 %%   - this adds 50 pieces of wood when added to the end of a letter.
             // %item tools Axe Hoe %%   - this adds tools; may list any of Axe, Hoe, Can, Scythe, and Pickaxe
             // %item money 250 601  %%  - this sends a random amount of gold from 250 to 601 inclusive.
-            // For more details, see: https://stardewvalleywiki.com/Modding:Mail_data 
             data["MyModMail1"] = "Hello @... ^A single carat is a new line ^^Two carats will double space.";
             data["MyModMail2"] = "This is how you send an existing item via email! %item object 388 50 %%";
             data["MyModMail3"] = "Coin $   Star =   Heart <   Dude +  Right Arrow >   Up Arrow `";
@@ -789,7 +781,8 @@ Can be used to prevent a mutually exclusive event from being seen by setting it 
 An event can mark itself unseen using eventSeen <event ID> false. This takes effect immediately (i.e. the event won't be added to the list when it completes), but the game will prevent the event from playing again until the player changes location to avoid event loops. The event will still replay when re-entering the location, making it useful for creating repeatable events.
 
 extendSourceRect <actor> reset	Resets the actors sprite.
-extendSourceRect <actor> <horizontal> <vertical> [ignoreUpdates]	TODO: Explain Character.extendSourceRect
+extendSourceRect <actor> <horizontal> <vertical> [ignoreUpdates]
+extendSourceRect
 eyes <eyes> <blink>	Change the player's eyes. Eyes is represented by and Integer from 0 - 5 (open, closed, right, left, half closed, wide open). Blink is a timer that is represented with a negative number. -1000 is the default timer.
 faceDirection <actor> <direction> [continue]	Make a named NPC face a direction. If [continue] is false (default) the game will pause while the NPC changes their direction.
 fade [unfade]	Fades out to black if no parameter is supplied. If the parameter is unfade (not true), fades in from black.

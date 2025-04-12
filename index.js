@@ -1,4 +1,5 @@
 const coloredSpots = {};
+const mapHeadings = {};
 
 function drawBackgroundImage(backgroundCanvas, src) {
     return new Promise(resolve => {
@@ -28,24 +29,47 @@ function drawBackgroundImage(backgroundCanvas, src) {
 
             resolve([width, height]);
         });
+        
+        image.addEventListener('error', (err) => {
+            console.error(`Failed to load image: ${src}`, err);
+            resolve([0, 0]); // Resolve with zero dimensions to avoid breaking the chain
+        });
 
         image.src = src;
     });
 }
 
 function initMap(title, src) {
+    // Create a unique ID for the map section
+    const mapId = `map-${title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`;
+    
+    // Create a map section with the ID
+    const mapSection = document.createElement('section');
+    mapSection.id = mapId;
+    document.body.appendChild(mapSection);
+
     const titleHeading = document.createElement('h2');
     titleHeading.innerText = title;
-    document.body.appendChild(titleHeading);
+    titleHeading.id = `heading-${mapId}`;
+    mapSection.appendChild(titleHeading);
+    
+    // Store the heading reference for navigation
+    mapHeadings[title] = titleHeading;
 
     const stageDiv = document.createElement('div');
     stageDiv.className = 'canvas-stage';
-    document.body.appendChild(stageDiv);
+    mapSection.appendChild(stageDiv);
 
     const backgroundCanvas = document.createElement('canvas');
     stageDiv.appendChild(backgroundCanvas);
 
-    drawBackgroundImage(backgroundCanvas, src).then(([width, height]) => {
+    return drawBackgroundImage(backgroundCanvas, src).then(([width, height]) => {
+        if (width === 0 && height === 0) {
+            // Image failed to load
+            titleHeading.innerHTML += ' <span style="color: #ff5555">(Failed to load)</span>';
+            return false;
+        }
+        
         const frontCanvas = document.createElement('canvas');
         frontCanvas.width = width;
         frontCanvas.height = height;
@@ -59,7 +83,7 @@ function initMap(title, src) {
             const y = Math.floor(offsetY / 16);
             const coloredSpot = coloredSpots[title]?.[x]?.[y];
             const coloredSpotText = coloredSpot ? `${coloredSpot.join(', ')} ` : '';
-            tooltip.innerText = `${coloredSpotText}(${x},${y})`;
+            tooltip.innerText = `${title}: ${coloredSpotText}(${x},${y})`;
 
             if (highlightedCoord) {
                 const [oldX, oldY] = highlightedCoord;
@@ -81,6 +105,8 @@ function initMap(title, src) {
             ctx.fillRect(x * 16 + 1, y * 16 + 1, 14, 14);
             highlightedCoord = [x, y];
         });
+        
+        return true;
     });
 }
 
@@ -134,61 +160,223 @@ function colorSpots(spots) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const mapFilenames = [
-        'maps/AnimalShop.png',
-        'maps/ArchaeologyHouse.png',
-        'maps/BathHouse_Entry.png',
-        'maps/BathHouse_MensLocker.png',
-        'maps/BathHouse_WomensLocker.png',
-        'maps/Beach.png',
-        'maps/Blacksmith.png',
-        'maps/BusStop.png',
-        'maps/CommunityCenter.png',
-        'maps/ElliottHouse.png',
-        'maps/FishShop.png',
-        'maps/Forest.png',
-        'maps/HaleyHouse.png',
-        'maps/HarveyRoom.png',
-        'maps/Hospital.png',
-        'maps/JojaMart.png',
-        'maps/JoshHouse.png',
-        'maps/LeahHouse.png',
-        'maps/ManorHouse.png',
-        'maps/Mountain.png',
-        'maps/Railroad.png',
-        'maps/Saloon.png',
-        'maps/SamHouse.png',
-        'maps/ScienceHouse.png',
-        'maps/SebastianRoom.png',
-        'maps/SeedShop.png',
-        'maps/Sunroom.png',
-        'maps/Tent.png',
-        'maps/Town.png',
-        'maps/Trailer.png',
-        'maps/Trailer_Big.png'
-    ];
-    const titleRegex = /maps\/([^.]+)/;
-    for (const mapFilename of mapFilenames) {
-        const title = mapFilename.match(titleRegex)[1];
-        initMap(title, mapFilename);
+// Function to dynamically fetch map files from the assets directory
+async function fetchMapList() {
+    try {
+        // Create a list of maps using your assets/maps directory
+        const mapFiles = [
+            'AbandonedJojaMart.png',
+            'AdventureGuild.png',
+            'AnimalShop.png',
+            'ArchaeologyHouse.png',
+            'Backwoods.png',
+            'BathHouse_Entry.png',
+            'BathHouse_MensLocker.png',
+            'BathHouse_Pool.png',
+            'BathHouse_WomensLocker.png',
+            'Beach.png',
+            'Blacksmith.png',
+            'BoatTunnel.png',
+            'BugLand.png',
+            'BusStop.png',
+            'Caldera.png',
+            'cave.png',
+            'Cellar.png',
+            'Club.png',
+            'CommunityCenter_Joja.png',
+            'CommunityCenter_Refurbished.png',
+            'CommunityCenter_Ruins.png',
+            'Desert.png',
+            'ElliottHouse.png',
+            'Farm.png',
+            'FarmCave.png',
+            'FishShop.png',
+            'Forest.png',
+            'Greenhouse.png',
+            'HaleyHouse.png',
+            'HarveyRoom.png',
+            'Hospital.png',
+            'Island_CaptainRoom.png',
+            'Island_E.png',
+            'Island_FarmCave.png',
+            'Island_Hut.png',
+            'Island_N.png',
+            'Island_Resort.png',
+            'Island_S.png',
+            'Island_SE.png',
+            'Island_Secret.png',
+            'Island_Shrine.png',
+            'Island_W.png',
+            'IslandFarmHouse.png',
+            'JojaMart.png',
+            'JoshHouse.png',
+            'LeahHouse.png',
+            'LeoTreeHouse.png',
+            'LewisBasement.png',
+            'ManorHouse.png',
+            'MarnieBarn.png',
+            'MaruBasement.png',
+            'MasteryCave.png',
+            'Mine.png',
+            'Mountain.png',
+            'MovieTheater.png',
+            'Railroad.png',
+            'Town.png',
+            'WizardHouse.png',
+            'WizardHouseBasement.png',
+            'Woods.png'
+        ];
+
+        return mapFiles;
+    } catch (error) {
+        console.error("Error fetching map list:", error);
+        return [];
     }
+}
 
-    // Set up file drop handler for filling in squares based on spots.json.
-    document.body.addEventListener('dragover', (event) => {
-        event.preventDefault();
+// Create navigation links for all maps
+function createNavigation(mapTitles) {
+    const mapLinks = document.getElementById('map-links');
+    
+    // Sort map titles alphabetically
+    mapTitles.sort();
+    
+    // Create a list for the links
+    const navList = document.createElement('ul');
+    mapLinks.appendChild(navList);
+    
+    // Add links for each map
+    for (const title of mapTitles) {
+        const mapId = `map-${title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`;
+        const listItem = document.createElement('li');
+        const link = document.createElement('a');
+        link.href = `#heading-${mapId}`;
+        link.textContent = title;
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const heading = document.getElementById(`heading-${mapId}`);
+            if (heading) {
+                heading.scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+        listItem.appendChild(link);
+        navList.appendChild(listItem);
+    }
+}
+
+// Set up drag and drop functionality
+function setupDragAndDrop() {
+    const dropzone = document.getElementById('dropzone');
+    
+    // Prevent default behaviors for drag events
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
     });
-
-    document.body.addEventListener('drop', (event) => {
-        event.preventDefault();
-
-        if (event.dataTransfer.files.length !== 1) {
+    
+    // Highlight the dropzone when a file is dragged over it
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropzone.addEventListener(eventName, highlight, false);
+    });
+    
+    // Remove highlight when the file is dragged out or dropped
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, unhighlight, false);
+    });
+    
+    // Handle the dropped file
+    dropzone.addEventListener('drop', handleDrop, false);
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    function highlight() {
+        dropzone.classList.add('active');
+    }
+    
+    function unhighlight() {
+        dropzone.classList.remove('active');
+    }
+    
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        if (files.length !== 1) {
+            alert('Please drop exactly one spots.json file.');
             return;
         }
+        
+        const file = files[0];
+        
+        // Read and process the file
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            try {
+                const { spots } = JSON.parse(event.target.result);
+                colorSpots(spots);
+                dropzone.innerHTML = `Loaded spots.json with ${Object.keys(spots).length} locations!`;
+            } catch (error) {
+                console.error('Error parsing spots.json:', error);
+                alert('Error parsing the file. Make sure it\'s a valid spots.json file with a "spots" property.');
+            }
+        };
+        reader.readAsText(file);
+    }
+}
 
-        event.dataTransfer.files[0].text().then((text) => {
-            const { spots } = JSON.parse(text);
-            colorSpots(spots);
-        });
-    });
+document.addEventListener('DOMContentLoaded', async () => {
+    // Create a loading indicator
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.innerText = 'Loading maps...';
+    loadingIndicator.style = 'position: fixed; top: 10px; right: 10px; background: #555; padding: 10px; border-radius: 5px;';
+    document.body.appendChild(loadingIndicator);
+    
+    try {
+        // Get the map filenames
+        const mapFilenames = await fetchMapList();
+        
+        // Create instructions
+        const instructions = document.createElement('p');
+        instructions.innerHTML = `Hover over a map to see the X,Y coordinates. <strong>${mapFilenames.length}</strong> maps available.`;
+        document.body.insertBefore(instructions, document.getElementById('dropzone'));
+        
+        // Initialize dropzone functionality
+        setupDragAndDrop();
+        
+        // Process each map file and keep track of successfully loaded maps
+        const loadedMaps = [];
+        const loadPromises = [];
+        
+        for (const mapFilename of mapFilenames) {
+            const title = mapFilename.replace('.png', '');
+            const mapPath = `assets/maps/${mapFilename}`;
+            const loadPromise = initMap(title, mapPath).then(success => {
+                if (success) {
+                    loadedMaps.push(title);
+                }
+                return success;
+            });
+            loadPromises.push(loadPromise);
+        }
+        
+        // Wait for all maps to load, then create navigation
+        await Promise.all(loadPromises);
+        createNavigation(loadedMaps);
+        
+        // Update instructions with actual loaded count
+        instructions.innerHTML = `Hover over a map to see the X,Y coordinates. <strong>${loadedMaps.length}</strong> maps loaded.`;
+        
+    } catch (error) {
+        console.error("Error loading maps:", error);
+        const errorMessage = document.createElement('p');
+        errorMessage.innerText = 'Error loading maps: ' + error.message;
+        errorMessage.style.color = '#ff5555';
+        document.body.appendChild(errorMessage);
+    } finally {
+        // Remove loading indicator
+        loadingIndicator.remove();
+    }
 });
