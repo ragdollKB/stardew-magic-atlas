@@ -425,12 +425,24 @@ namespace WarpMod
                 // Load the open atlas texture
                 Texture2D openAtlasTexture = Helper.ModContent.Load<Texture2D>("assets/items/atlas_sprite_open.png");
                 
-                // Draw the open atlas image in the center of the container
+                // Calculate a scaling factor to fit the image within the container, preserving aspect ratio
+                // Leave some margins (20 pixels on each side)
+                float availableWidth = containerBounds.Width - 40; 
+                float availableHeight = containerBounds.Height - 80; // Extra space at bottom for text
+                
+                float scaleWidth = availableWidth / openAtlasTexture.Width;
+                float scaleHeight = availableHeight / openAtlasTexture.Height;
+                
+                // Use the smaller scale to ensure the image fits in both dimensions
+                float scale = Math.Min(scaleWidth, scaleHeight);
+                
+                // Calculate centered position
                 Vector2 imagePosition = new Vector2(
-                    containerBounds.X + (containerBounds.Width - openAtlasTexture.Width) / 2,
-                    containerBounds.Y + (containerBounds.Height - openAtlasTexture.Height) / 2
+                    containerBounds.X + (containerBounds.Width - (openAtlasTexture.Width * scale)) / 2,
+                    containerBounds.Y + (containerBounds.Height - (openAtlasTexture.Height * scale) - 40) / 2 // Offset up a bit for text below
                 );
                 
+                // Draw the open atlas image scaled to fit the container
                 b.Draw(
                     openAtlasTexture,
                     imagePosition,
@@ -438,17 +450,18 @@ namespace WarpMod
                     Color.White,
                     0f,
                     Vector2.Zero,
-                    1f,
+                    scale,
                     SpriteEffects.None,
                     1f
                 );
                 
-                // Draw instructions at the bottom of the container
-                string instruction = "Select a category, then a location";
+                // Draw instructions at the bottom with more space
+                // No "select a button" instruction - just the image speaks for itself
+                string instruction = "Choose a destination";
                 Vector2 textSize = Game1.dialogueFont.MeasureString(instruction);
                 Vector2 position = new Vector2(
                     containerBounds.X + (containerBounds.Width - textSize.X) / 2,
-                    containerBounds.Y + containerBounds.Height - textSize.Y - 20  // Position at bottom with padding
+                    containerBounds.Y + containerBounds.Height - textSize.Y - 30  // More padding at bottom
                 );
                 
                 b.DrawString(Game1.dialogueFont, instruction, position, Game1.textColor * 0.8f);
@@ -459,7 +472,7 @@ namespace WarpMod
                 Monitor?.Log($"Error loading open atlas image: {ex.Message}", LogLevel.Error);
                 
                 // Draw instructions centered in the container
-                string instruction = "Select a category, then a location";
+                string instruction = "Choose a destination";
                 Vector2 textSize = Game1.dialogueFont.MeasureString(instruction);
                 Vector2 position = new Vector2(
                     containerBounds.X + (containerBounds.Width - textSize.X) / 2,

@@ -124,8 +124,28 @@ namespace WarpMod
                 HasBeenInInventory = true;
                 _anyAtlasRead = true;
 
+                // Save reference to the currently held item before opening menu
+                // This ensures we keep the proper item reference when the menu closes
+                Item heldItem = Game1.player.CurrentItem;
+
                 // Open warp menu when used
                 Game1.activeClickableMenu = new GridWarpMenu(Helper, Monitor, Config);
+                
+                // Preserve the Atlas item in the inventory - this prevents item transformation issues
+                // when the menu is closed
+                if (Game1.player.CurrentItem == null && heldItem is MagicAtlasItem)
+                {
+                    // Restore the correct item reference to the player's inventory at the same slot
+                    for (int i = 0; i < Game1.player.Items.Count; i++)
+                    {
+                        if (Game1.player.Items[i] == null && 
+                            Game1.player.CurrentToolIndex == i)
+                        {
+                            Game1.player.Items[i] = heldItem;
+                            break;
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
