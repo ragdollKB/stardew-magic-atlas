@@ -637,6 +637,16 @@ namespace WarpMod
         {
             try
             {
+                // Keep track of any MagicAtlas items in the inventory
+                var atlasItems = new List<(int index, Item atlas)>();
+                for (int i = 0; i < Game1.player.Items.Count; i++)
+                {
+                    if (Game1.player.Items[i] is MagicAtlasItem)
+                    {
+                        atlasItems.Add((i, Game1.player.Items[i]));
+                    }
+                }
+
                 // Add warp effect if configured
                 if (config.UseWarpEffects)
                 {
@@ -650,6 +660,16 @@ namespace WarpMod
                     Game1.playSound("wand");
                     Monitor.Log($"Warped to {locationName} at ({tileX}, {tileY})", LogLevel.Debug);
 
+                    // Ensure atlas items are still in inventory after warping
+                    foreach (var (index, atlas) in atlasItems)
+                    {
+                        if (Game1.player.Items[index] == null || !(Game1.player.Items[index] is MagicAtlasItem))
+                        {
+                            Game1.player.Items[index] = atlas;
+                            Monitor.Log("Restored Magic Atlas after warping", LogLevel.Debug);
+                        }
+                    }
+                    
                     // Exit menu after warping - no more continue dialog
                     exitThisMenu(playSound: false);
                 }

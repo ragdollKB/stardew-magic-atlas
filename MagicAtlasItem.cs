@@ -124,28 +124,19 @@ namespace WarpMod
                 HasBeenInInventory = true;
                 _anyAtlasRead = true;
 
-                // Save reference to the currently held item before opening menu
+                // Save reference to the currently held item and its position in inventory
                 // This ensures we keep the proper item reference when the menu closes
                 Item heldItem = Game1.player.CurrentItem;
+                int heldItemIndex = Game1.player.CurrentToolIndex;
+
+                // Register for events to monitor and restore the Atlas if needed
+                if (Helper != null)
+                {
+                    Helper.Events.GameLoop.UpdateTicked += (sender, e) => RestoreAtlasIfNeeded(heldItem, heldItemIndex);
+                }
 
                 // Open warp menu when used
                 Game1.activeClickableMenu = new GridWarpMenu(Helper, Monitor, Config);
-                
-                // Preserve the Atlas item in the inventory - this prevents item transformation issues
-                // when the menu is closed
-                if (Game1.player.CurrentItem == null && heldItem is MagicAtlasItem)
-                {
-                    // Restore the correct item reference to the player's inventory at the same slot
-                    for (int i = 0; i < Game1.player.Items.Count; i++)
-                    {
-                        if (Game1.player.Items[i] == null && 
-                            Game1.player.CurrentToolIndex == i)
-                        {
-                            Game1.player.Items[i] = heldItem;
-                            break;
-                        }
-                    }
-                }
             }
             catch (Exception ex)
             {
@@ -153,6 +144,73 @@ namespace WarpMod
                 Game1.addHUDMessage(new HUDMessage("Something went wrong with the Magic Atlas.", HUDMessage.error_type));
             }
             return false; // Always return false to prevent consumption
+        }
+
+        /// <summary>
+        /// Restore the atlas item if it disappeared from inventory
+        /// This is called once per update tick after the atlas is used
+        /// </summary>
+        private void RestoreAtlasIfNeeded(Item originalItem, int originalIndex)
+        {
+            try
+            {
+                // Only run this once per tick after the atlas is used
+                Helper.Events.GameLoop.UpdateTicked -= (sender, e) => RestoreAtlasIfNeeded(originalItem, originalIndex);
+
+                // Check if the atlas should be restored
+                if (originalItem is MagicAtlasItem && 
+                    (Game1.player.Items[originalIndex] == null || 
+                     !(Game1.player.Items[originalIndex] is MagicAtlasItem)))
+                {
+                    // If the atlas is missing or has been replaced with something else, restore it
+                    Monitor?.Log("Atlas disappeared from inventory - restoring it", LogLevel.Debug);
+                    
+                    // If the slot is empty, just put the atlas back
+                    if (Game1.player.Items[originalIndex] == null)
+                    {
+                        Game1.player.Items[originalIndex] = originalItem;
+                    }
+                    // If something else is in the slot (like a yellow stone), remove it and add the atlas
+                    else
+                    {
+                        // Create a replacement atlas since the original one might have been transformed
+                        Game1.player.Items[originalIndex] = new MagicAtlasItem(Config);
+                    }
+                }
+                
+                // Look for any objects on the ground that might be the transformed atlas
+                // (like the yellow stone) and remove them
+                if (Game1.currentLocation != null)
+                {
+                    Vector2 playerTileLocation = new Vector2(
+                        (int)(Game1.player.Position.X / Game1.tileSize),
+                        (int)(Game1.player.Position.Y / Game1.tileSize)
+                    );
+                    
+                    var objectsToRemove = Game1.currentLocation.Objects.Values
+                        .Where(o => o.ParentSheetIndex == 68 && 
+                               Vector2.Distance(o.TileLocation, playerTileLocation) < 3)
+                        .ToList();
+                        
+                    foreach (var obj in objectsToRemove)
+                    {
+                        Game1.currentLocation.Objects.Remove(obj.TileLocation);
+                        Monitor?.Log("Removed dropped item that may have been a transformed atlas", LogLevel.Debug);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Monitor?.Log($"Error in RestoreAtlasIfNeeded: {ex.Message}", LogLevel.Error);
+            }
+        }
+
+        /// <summary>
+        /// Override canBeDropped to prevent the atlas from being dropped
+        /// </summary>
+        public override bool canBeDropped()
+        {
+            return false; // Prevent the atlas from being dropped
         }
 
         /// <summary>

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2025-04-12
+
+### Fixed
+- Implemented comprehensive fix for the persistent bug where the Magic Atlas could disappear from inventory and spawn a yellow stone object
+- Added automatic inventory restoration mechanism that detects and fixes Atlas item issues
+- Added protection to prevent the Atlas from being dropped accidentally
+- Improved warp handling to preserve Atlas items during location changes
+- Cleanup system that removes any yellow stones that appear near the player
+
 ## [0.4.3] - 2025-04-12
 
 ### Fixed
@@ -109,6 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - N/A (Initial Release)
 
+[0.4.4]: https://github.com/yourusername/stardew-magic-atlas/releases/tag/v0.4.4
 [0.4.3]: https://github.com/yourusername/stardew-magic-atlas/releases/tag/v0.4.3
 [0.4.2]: https://github.com/yourusername/stardew-magic-atlas/releases/tag/v0.4.2
 [0.4.1]: https://github.com/yourusername/stardew-magic-atlas/releases/tag/v0.4.1
