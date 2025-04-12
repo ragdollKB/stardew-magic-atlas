@@ -7,6 +7,7 @@ using StardewValley.Tools;
 using System;
 using System.IO;
 using System.Reflection;
+using System.Linq; // Add this for LINQ methods
 using WarpMod.Utility;
 
 namespace WarpMod
@@ -75,6 +76,14 @@ namespace WarpMod
             if (!Context.IsWorldReady)
             {
                 this.Monitor.Log("You need to load a save first!", LogLevel.Error);
+                return;
+            }
+            
+            // Check if player already has an atlas to prevent duplicates
+            bool alreadyHasAtlas = Game1.player.Items.Any(item => item is MagicAtlasItem);
+            if (alreadyHasAtlas)
+            {
+                this.Monitor.Log("Player already has a Magic Atlas!", LogLevel.Info);
                 return;
             }
             

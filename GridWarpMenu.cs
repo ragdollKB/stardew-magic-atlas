@@ -461,7 +461,7 @@ namespace WarpMod
                         Game1.playSound("smallSelect");
                         UpdateLocationButtons(); // Update locations for the new category
                     }
-                    return; // Click handled
+                    return; // Make sure to return here regardless if same or different tab
                 }
             }
 
@@ -597,26 +597,28 @@ namespace WarpMod
                     CreateWarpEffect();
                 }
 
-                // Close menu
-                exitThisMenu(playSound: false);
-
                 // Warp to location
                 if (locationManager.WarpToLocation(locationName, tileX, tileY))
                 {
                     // Play sound
                     Game1.playSound("wand");
                     Monitor.Log($"Warped to {locationName} at ({tileX}, {tileY})", LogLevel.Debug);
+
+                    // Exit menu after warping - no more continue dialog
+                    exitThisMenu(playSound: false);
                 }
                 else
                 {
                     Monitor.Log($"Failed to warp to {locationName}", LogLevel.Warn);
                     Game1.addHUDMessage(new HUDMessage("Failed to warp to location", HUDMessage.error_type));
+                    exitThisMenu(playSound: false);
                 }
             }
             catch (Exception ex)
             {
                 Monitor.Log($"Error warping to location: {ex.Message}", LogLevel.Error);
                 Game1.addHUDMessage(new HUDMessage("Error warping to location", HUDMessage.error_type));
+                exitThisMenu(playSound: false);
             }
         }
 

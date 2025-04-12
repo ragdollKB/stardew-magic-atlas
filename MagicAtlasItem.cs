@@ -3,196 +3,170 @@ using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Objects;
+using StardewValley.Menus;
 using System;
+using System.Linq;
+using WarpMod.Utility;
 
 namespace WarpMod
 {
     /// <summary>
-    /// The Magic Atlas item that opens the warp menu when used.
+    /// Magic Atlas item that allows warping to discovered locations
     /// </summary>
     public class MagicAtlasItem : StardewValley.Object
     {
-        // Static reference to mod for helper and config access
-        private static IModHelper Helper;
-        private static IMonitor Monitor;
-        private static ModConfig Config;
-        
-        // Item ID for save/load functionality
-        public const string ITEM_ID = "MagicAtlas";
-        public const int CATEGORY_ID = -999; // Custom category ID
-        
-        // Flag for whether the atlas has been read
-        public const string READ_FLAG = "ReadMagicAtlas";
-        
-        // Item description
-        private string itemDescription = "A magical atlas that warps you to locations you've visited. Found in the town fountain.";
-        private string readDescription = "A magical atlas that grants permanent warping ability to any location. Found in the town fountain.";
-        
-        // Constructor
-        public MagicAtlasItem() : base()
-        {
-            // Set basic properties
-            this.Name = ITEM_ID;
-            this.displayName = "Magic Atlas";
-            this.Category = CATEGORY_ID;
-            this.Stack = 1; // Only one can be owned
-            this.CanBeSetDown = false; // Can't be placed
-            this.CanBeGrabbed = true; // Can be grabbed into inventory
-            this.HasBeenInInventory = true; // Start as known
-            this.Price = 5000; // High sale value, but shouldn't be sold!
-            this.Type = "Crafting"; // Crafting item type
+        // Static references to mod helper and monitor for logging
+        public static IModHelper Helper { get; private set; }
+        public static IMonitor Monitor { get; private set; }
+        public static ModConfig Config { get; private set; }
+
+        // Properties
+        private bool _HasBeenInInventory { get; set; } = false;
+        // Explicitly use new keyword to resolve the warning
+        public new bool HasBeenInInventory 
+        { 
+            get { return _HasBeenInInventory; } 
+            set { _HasBeenInInventory = value; } 
         }
         
-        // Static initializer method
+        // Static flag to track if any atlas has been read
+        private static bool _anyAtlasRead = false;
+
+        // Store the config reference
+        private readonly ModConfig config;
+        
+        // Add description field
+        private string _description = "A magical atlas that lets you warp to discovered locations.";
+        
+        /// <summary>
+        /// Initialize the static properties of the class
+        /// </summary>
         public static void Initialize(IModHelper helper, IMonitor monitor, ModConfig config)
         {
             Helper = helper;
             Monitor = monitor;
             Config = config;
-        }
-
-        // Method to open the warp menu
-        public void OpenWarpMenu()
-        {
-            if (Context.IsWorldReady && Game1.activeClickableMenu == null)
-            {
-                Game1.activeClickableMenu = new GridWarpMenu(Helper, Monitor, Config);
-                Game1.playSound("openBook"); // Changed from "openChest" to "openBook"
-            }
+            
+            Monitor?.Log("Magic Atlas item initialized", LogLevel.Debug);
         }
         
-        // Check if the atlas has been read
+        /// <summary>
+        /// Check if any Magic Atlas has been read/used by the player
+        /// </summary>
         public static bool HasBeenRead()
         {
-            return Game1.player.mailReceived.Contains(READ_FLAG);
+            return _anyAtlasRead;
         }
-        
-        // Mark the atlas as read
-        private void MarkAsRead()
+
+        /// <summary>
+        /// Default constructor - required for item serialization
+        /// </summary>
+        public MagicAtlasItem(ModConfig config = null)
+            : base("102", 1) // Fix: Use string item ID "102" and stack size 1
         {
-            if (!HasBeenRead())
-            {
-                Game1.player.mailReceived.Add(READ_FLAG);
-                // Show a visual effect to indicate the player gained a permanent ability
-                ShowPermanentAbilityEffect();
-                // Show message about gaining a permanent ability
-                Game1.addHUDMessage(new HUDMessage("You've gained the permanent ability to warp!", HUDMessage.achievement_type));
-            }
-        }
-        
-        // Show visual effect for gaining a permanent ability
-        private void ShowPermanentAbilityEffect()
-        {
-            // Play magical sound
-            Game1.playSound("discoverMineral");
+            this.config = config ?? new ModConfig();
             
-            // Show particles around player
-            for (int i = 0; i < 16; i++)
-            {
-                Vector2 position = Game1.player.Position + new Vector2(
-                    Game1.random.Next(-48, 48),
-                    Game1.random.Next(-48, 48));
-                    
-                Game1.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite(
-                    "TileSheets\\animations",
-                    new Rectangle(0, 256, 64, 64), // Magic dust animation
-                    position,
-                    false,
-                    (float)Game1.random.Next(100, 150) / 1000f,
-                    new Color(120, 180, 255) // Blue magical color
-                )
-                {
-                    scale = (float)Game1.random.Next(100, 150) / 100f,
-                    layerDepth = 1f,
-                    delayBeforeAnimationStart = i * 50,
-                    motion = new Vector2(
-                        (float)Game1.random.Next(-10, 11) / 10f,
-                        (float)Game1.random.Next(-10, 11) / 10f
-                    )
-                });
-            }
-        }
-        
-        public override string getDescription()
-        {
-            return HasBeenRead() ? readDescription : itemDescription;
-        }
-        
-        public override bool canBeDropped()
-        {
-            return false;
-        }
-        
-        public override bool canBeTrashed()
-        {
-            return false;
-        }
-        
-        public override string getCategoryName()
-        {
-            return "Magic";
-        }
-        
-        public override Color getCategoryColor()
-        {
-            return new Color(120, 100, 255);
-        }
-        
-        public override int maximumStackSize()
-        {
-            return 1;
-        }
-        
-        public override bool isPlaceable()
-        {
-            return false;
-        }
-        
-        public override bool canBeGivenAsGift()
-        {
-            return false;
-        }
-        
-        // Override to draw the item
-        public override void drawInMenu(SpriteBatch spriteBatch, Vector2 location, float scaleSize, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow)
-        {
-            // Get the item's texture
-            Texture2D texture = Helper.ModContent.Load<Texture2D>("assets/items/MagicAtlas.png");
+            // Configure item properties
+            this.Name = "Magic Atlas";
+            this.bigCraftable.Value = false;
+            this.Type = "Basic";
+            this.Category = -22; // Misc category value in Stardew Valley
+            this.Price = 5000;
+            this.Edibility = -300; // Inedible
+            this.Stack = 1;
             
-            // Draw the item
-            spriteBatch.Draw(
-                texture,
-                location + new Vector2(32f, 32f) * scaleSize,
-                new Rectangle(0, 0, 16, 16),
-                color * transparency,
-                0f,
-                new Vector2(8f, 8f),
-                2.0f * scaleSize, // Reduced from 2.5f to 2.0f to make it even smaller
-                SpriteEffects.None,
-                layerDepth
-            );
+            // Set description using the field
+            this._description = "A magical atlas that lets you warp to discovered locations.";
         }
-        
-        // Method to handle item use - use new implementation instead of overriding
-        public new Item getOne()
+
+        /// <summary>
+        /// Creates a new instance of the item
+        /// </summary>
+        public new StardewValley.Object getOne()
         {
-            return new MagicAtlasItem();
+            MagicAtlasItem newItem = new MagicAtlasItem();
+            // Copy state if needed (nothing needed for now)
+            return newItem;
         }
-        
-        // Use the atlas
+
+        /// <summary>
+        /// Override to handle when the item is used from the inventory
+        /// </summary>
+        /// <returns>Always returns false to prevent consumption</returns>
         public override bool performUseAction(GameLocation location)
         {
-            // First time using the atlas, mark it as read and grant permanent ability
-            MarkAsRead();
-            
-            // Open the warp menu
-            OpenWarpMenu();
-            
-            // Play page turning sound
-            Game1.playSound("turnPage");
-            
-            // Return true to indicate we handled the action
-            return true;
+            try
+            {
+                // Check if config allows using the item
+                if (Config == null || !Config.EnableMagicAtlas)
+                {
+                    Game1.addHUDMessage(new HUDMessage("This item seems to be inactive.", HUDMessage.error_type));
+                    return false;
+                }
+
+                // Mark as having been in inventory and read
+                HasBeenInInventory = true;
+                _anyAtlasRead = true;
+
+                // Open warp menu when used
+                Game1.activeClickableMenu = new GridWarpMenu(Helper, Monitor, Config);
+            }
+            catch (Exception ex)
+            {
+                Monitor?.Log($"Error using Magic Atlas item: {ex.Message}", LogLevel.Error);
+                Game1.addHUDMessage(new HUDMessage("Something went wrong with the Magic Atlas.", HUDMessage.error_type));
+            }
+            return false; // Always return false to prevent consumption
+        }
+
+        /// <summary>
+        /// Override to draw the item
+        /// </summary>
+        public override void drawInMenu(SpriteBatch spriteBatch, Vector2 location, float scaleSize, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow)
+        {
+            try
+            {
+                // Get the item's texture
+                Texture2D texture = Helper?.ModContent.Load<Texture2D>("assets/items/MagicAtlas.png");
+                
+                if (texture != null)
+                {
+                    // Draw the item with proper scaling
+                    spriteBatch.Draw(
+                        texture,
+                        location + new Vector2(32f, 32f) * scaleSize,
+                        new Rectangle(0, 0, 16, 16),
+                        color * transparency,
+                        0f,
+                        new Vector2(8f, 8f),
+                        4.0f * scaleSize, // Scale properly to fill the inventory slot
+                        SpriteEffects.None,
+                        layerDepth
+                    );
+                    
+                    // Draw stack number if needed
+                    if (this.Stack > 1 && drawStackNumber != StackDrawType.Hide)
+                        StardewValley.Utility.drawTinyDigits(this.Stack, spriteBatch, location + new Vector2((float)(64 - StardewValley.Utility.getWidthOfTinyDigitString(this.Stack, 3f)) + 3f, 64f - 18f + 2f), 3f, 1f, color);
+                }
+                else
+                {
+                    // Fallback if texture fails to load
+                    Monitor?.Log("Failed to load Magic Atlas texture, using fallback drawing method", LogLevel.Warn);
+                    base.drawInMenu(spriteBatch, location, scaleSize, transparency, layerDepth, drawStackNumber, color, drawShadow);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error and use fallback drawing
+                Monitor?.Log($"Error drawing Magic Atlas: {ex.Message}", LogLevel.Error);
+                base.drawInMenu(spriteBatch, location, scaleSize, transparency, layerDepth, drawStackNumber, color, drawShadow);
+            }
+        }
+        
+        // Override the description property getter
+        public override string getDescription()
+        {
+            return _description;
         }
     }
 }

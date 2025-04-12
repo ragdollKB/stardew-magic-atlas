@@ -54,18 +54,16 @@ namespace WarpMod
                     // Check if it's winter, as that's when the fountain is empty/frozen
                     bool isWinter = Game1.currentSeason.Equals("winter");
                     
-                    // Check for using tools at the fountain during winter
-                    if ((Game1.player.CurrentTool is Hoe) && 
-                        isWinter &&
-                        IsPlayerFacingAtlasSpot())
+                    // Check for active tool use at the fountain during winter
+                    if (isWinter && 
+                        IsPlayerFacingAtlasSpot() && 
+                        Game1.player.UsingTool && 
+                        !Game1.player.canMove && 
+                        (Game1.player.CurrentTool is Hoe || Game1.player.CurrentTool is Pickaxe))
                     {
-                        // Check for tool use action rather than mouse clicks
-                        if (Game1.player.UsingTool && !Game1.player.canMove)
-                        {
-                            DigForAtlas();
-                            // Add debug log
-                            Monitor.Log("Player is using tool at atlas spot. Attempting to dig for atlas.", LogLevel.Debug);
-                        }
+                        DigForAtlas();
+                        // Add debug log
+                        Monitor.Log("Player is using tool at atlas spot. Attempting to dig for atlas.", LogLevel.Debug);
                     }
                 }
             }
@@ -174,26 +172,11 @@ namespace WarpMod
             // Log that dig method was triggered    
             Monitor.Log("DigForAtlas method triggered", LogLevel.Debug);
                 
-            // Play dig animation and sound
+            // Play dig sound only, no animation
             Game1.playSound("hoeHit");
             
-            // Create animation for digging
-            town.temporarySprites.Add(new TemporaryAnimatedSprite(
-                12, // Index of dirt animation
-                Game1.player.getStandingPosition(),
-                Color.White,
-                8, // Animation frames
-                false,
-                100f, // Animation interval
-                0, // Loop count (0 = no loops)
-                -1, // Layer depth
-                -1, // Extra info
-                -1,
-                0
-            ));
-            
-            // After a brief delay, create the "artifact found" animation (book emerging from ground)
-            DelayedAction.functionAfterDelay(() => CreateBookDiscoveryEffect(town), 600);
+            // Directly create the book discovery effect without digging animation
+            CreateBookDiscoveryEffect(town);
         }
         
         /// <summary>
@@ -221,38 +204,17 @@ namespace WarpMod
                 layerDepth = 1f
             });
             
-            // Create a vanilla-like book reading animation
-            town.temporarySprites.Add(new TemporaryAnimatedSprite(
-                "LooseSprites\\letterBG", 
-                new Rectangle(0, 0, 320, 180),
-                2000f, // Duration
-                1, // Frames
-                0, // Loop count
-                new Vector2(Game1.viewport.Width / 2 - 160, Game1.viewport.Height / 2 - 90),
-                false,
-                false,
-                0.9f,
-                0f, // Alpha
-                Color.White,
-                1f, // Scale
-                0f, // Rotation
-                0f, // Rotation change
-                0f) // Motion
-            {
-                alpha = 0f,
-                alphaFade = -0.002f, // Fade in
-                local = true
-            });
-            
-            // After a slight delay, show dialogue and give player the atlas
+            // Give the player the atlas after 2 seconds
             DelayedAction.functionAfterDelay(() => {
-                // Show message about finding the atlas
-                string message = "You break through the ice in the fountain and find a magical atlas! The pages shimmer with energy.";
-                Game1.drawObjectDialogue(message);
+                GiveAtlasToPlayer();
                 
-                // Give the player the atlas after dialogue ends
-                DelayedAction.functionAfterDelay(() => GiveAtlasToPlayer(), 2000);
-            }, 1500);
+                // Show message about finding the atlas after the effect
+                DelayedAction.functionAfterDelay(() => {
+                    // Replace large letter message with HUD message
+                    string message = "You break through the ice in the fountain and find a magical atlas! The pages shimmer with energy.";
+                    Game1.addHUDMessage(new HUDMessage(message, HUDMessage.newQuest_type));
+                }, 2000);
+            }, 1000);
         }
         
         /// <summary>
@@ -284,6 +246,10 @@ namespace WarpMod
         /// </summary>
         private void HandleAtlasSpotInteraction(Town town)
         {
+            // Don't show dialogue if one is already up
+            if (Game1.dialogueUp)
+                return;
+                
             string message;
             bool isWinter = Game1.currentSeason.Equals("winter");
             
@@ -291,7 +257,7 @@ namespace WarpMod
             if (AtlasReceived || PlayerHasAtlasItem())
             {
                 message = "The fountain looks normal.";
-                Game1.drawObjectDialogue(message);
+                Game1.addHUDMessage(new HUDMessage(message));
                 return;
             }
             
@@ -299,14 +265,13 @@ namespace WarpMod
             if (isWinter)
             {
                 // Show appropriate message based on tool
-                if (Game1.player.CurrentTool is Hoe)
+                if (Game1.player.CurrentTool is Hoe || Game1.player.CurrentTool is Pickaxe)
                 {
-                    message = "Something glimmers beneath the ice in the fountain. Your hoe might help dig it out.";
-                    DigForAtlas(); // Automatically dig if they're holding a hoe
+                    message = "Something glimmers beneath the ice in the fountain. Try using your tool here.";
                 }
                 else
                 {
-                    message = "Something glimmers beneath the ice in the fountain. You might need to dig here with a hoe.";
+                    message = "Something glimmers beneath the ice in the fountain. You might need to dig here with a hoe or break the ice with a pickaxe.";
                 }
             }
             else
@@ -315,7 +280,7 @@ namespace WarpMod
                 message = "You notice something glimmering at the bottom of the fountain, but can't reach it through the water. Perhaps when the fountain is frozen or empty...";
             }
             
-            Game1.drawObjectDialogue(message);
+            Game1.addHUDMessage(new HUDMessage(message, HUDMessage.newQuest_type));
         }
         
         /// <summary>
@@ -326,38 +291,61 @@ namespace WarpMod
             // Create the atlas item
             var atlas = new MagicAtlasItem();
             
-            // Try to add it to inventory
-            if (Game1.player.addItemToInventory(atlas) != null)
-            {
-                // If inventory full, drop it at player's feet
-                Game1.createItemDebris(atlas, Game1.player.Position, -1);
-            }
+            Monitor.Log("Giving Magic Atlas to player", LogLevel.Info);
             
+            // Always drop the Magic Atlas near the player
+            Monitor.Log("Dropping Magic Atlas near player", LogLevel.Info);
+
+            // Calculate the initial drop position
+            Vector2 dropPosition = Game1.player.Position;
+
+            // Check if the drop position is reachable
+            if (Game1.currentLocation.isCollidingPosition(new Rectangle((int)dropPosition.X, (int)dropPosition.Y, 64, 64), Game1.viewport, isFarmer: false, 0, false, Game1.player))
+            {
+                Monitor.Log("Initial drop position is not reachable. Making the item bounce to a reachable tile.", LogLevel.Warn);
+
+                // Attempt to find a reachable tile nearby
+                for (int i = 1; i <= 5; i++) // Search within a radius of 5 tiles
+                {
+                    foreach (Vector2 tile in StardewValley.Utility.getSurroundingTileLocationsArray(new Vector2((int)(dropPosition.X / Game1.tileSize), (int)(dropPosition.Y / Game1.tileSize))))
+                    {
+                        if (!Game1.currentLocation.isCollidingPosition(new Rectangle((int)(tile.X * Game1.tileSize), (int)(tile.Y * Game1.tileSize), 64, 64), Game1.viewport, isFarmer: false, 0, false, Game1.player))
+                        {
+                            dropPosition = tile * Game1.tileSize;
+                            Monitor.Log($"Found reachable tile at {tile}. Dropping item there.", LogLevel.Info);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Use createItemDebris to drop the item at the determined position
+            Game1.createItemDebris(
+                atlas,
+                dropPosition,
+                Game1.player.FacingDirection, // Direction to throw
+                Game1.currentLocation);
+
+            // Add a visual highlight to make it more noticeable
+            Game1.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite(
+                "TileSheets\\animations",
+                new Rectangle(0, 320, 64, 64), // Shiny effect
+                300f,
+                6,
+                1,
+                dropPosition,
+                false,
+                false,
+                1f,
+                0.0f,
+                Color.White,
+                1f,
+                0.0f,
+                0.0f,
+                0.0f)
+            );
             // Play reward sound
             Game1.playSound("reward");
-            
-            // Play the book reading animation
-            Game1.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite(
-                "LooseSprites\\letterBG",
-                new Rectangle(0, 0, 320, 180),
-                2000f, // Duration
-                1, // Frames
-                0, // Loop count
-                new Vector2(Game1.viewport.Width / 2 - 160, Game1.viewport.Height / 2 - 90),
-                false,
-                false,
-                0.9f,
-                0f, // Alpha
-                Color.White,
-                1f, // Scale
-                0f, // Rotation
-                0f, // Rotation change
-                0f) // Motion
-            {
-                alpha = 1f,
-                alphaFade = 0.0025f, // Fade out
-                local = true
-            });
             
             // Mark as received
             Game1.player.mailReceived.Add(ATLAS_FLAG);
