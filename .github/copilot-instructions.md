@@ -3,6 +3,7 @@ General Instructions
 - When The buidl is successful, update teh CHANGELOG.md 
 - Check to make sure the README.md needs to be updated. 
 
+The unpacked game assets are in the game_folder\Stardew Valley\Content (unpacked) and are a good palce to look for assets as they are the same in the actual game. 
 
 Basic techniques
 

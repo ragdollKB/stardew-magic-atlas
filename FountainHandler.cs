@@ -293,37 +293,63 @@ namespace WarpMod
             
             Monitor.Log("Giving Magic Atlas to player", LogLevel.Info);
             
-            // Always drop the Magic Atlas near the player
-            Monitor.Log("Dropping Magic Atlas near player", LogLevel.Info);
+            // Start the atlas at the fountain location instead of player position
+            Vector2 fountainPosition = new Vector2(ATLAS_TILE_X * Game1.tileSize, ATLAS_TILE_Y * Game1.tileSize);
+            Vector2 dropPosition = fountainPosition;
 
-            // Calculate the initial drop position
-            Vector2 dropPosition = Game1.player.Position;
-
-            // Check if the drop position is reachable
+            // Check if the fountain position is reachable (for pickup)
             if (Game1.currentLocation.isCollidingPosition(new Rectangle((int)dropPosition.X, (int)dropPosition.Y, 64, 64), Game1.viewport, isFarmer: false, 0, false, Game1.player))
             {
-                Monitor.Log("Initial drop position is not reachable. Making the item bounce to a reachable tile.", LogLevel.Warn);
-
-                // Attempt to find a reachable tile nearby
-                for (int i = 1; i <= 5; i++) // Search within a radius of 5 tiles
+                Monitor.Log("Fountain position is not directly reachable. Finding nearby position.", LogLevel.Info);
+                
+                // First try positions very close to the fountain (1-2 tiles)
+                bool foundNearbyPosition = false;
+                for (int i = 1; i <= 2; i++) // Search within a small radius first
                 {
-                    foreach (Vector2 tile in StardewValley.Utility.getSurroundingTileLocationsArray(new Vector2((int)(dropPosition.X / Game1.tileSize), (int)(dropPosition.Y / Game1.tileSize))))
+                    foreach (Vector2 tile in StardewValley.Utility.getSurroundingTileLocationsArray(new Vector2(ATLAS_TILE_X, ATLAS_TILE_Y)))
                     {
                         if (!Game1.currentLocation.isCollidingPosition(new Rectangle((int)(tile.X * Game1.tileSize), (int)(tile.Y * Game1.tileSize), 64, 64), Game1.viewport, isFarmer: false, 0, false, Game1.player))
                         {
                             dropPosition = tile * Game1.tileSize;
-                            Monitor.Log($"Found reachable tile at {tile}. Dropping item there.", LogLevel.Info);
+                            Monitor.Log($"Found reachable tile near fountain at {tile}. Atlas will bounce there.", LogLevel.Info);
+                            foundNearbyPosition = true;
                             break;
                         }
+                    }
+                    
+                    if (foundNearbyPosition)
+                        break;
+                }
+                
+                // If nearby positions don't work, try positions near the player as fallback
+                if (!foundNearbyPosition)
+                {
+                    dropPosition = Game1.player.Position;
+                    
+                    for (int i = 1; i <= 3; i++) // Limited search near player
+                    {
+                        foreach (Vector2 tile in StardewValley.Utility.getSurroundingTileLocationsArray(new Vector2((int)(dropPosition.X / Game1.tileSize), (int)(dropPosition.Y / Game1.tileSize))))
+                        {
+                            if (!Game1.currentLocation.isCollidingPosition(new Rectangle((int)(tile.X * Game1.tileSize), (int)(tile.Y * Game1.tileSize), 64, 64), Game1.viewport, isFarmer: false, 0, false, Game1.player))
+                            {
+                                dropPosition = tile * Game1.tileSize;
+                                Monitor.Log($"Found reachable tile near player at {tile}. Atlas will appear there.", LogLevel.Info);
+                                foundNearbyPosition = true;
+                                break;
+                            }
+                        }
+                        
+                        if (foundNearbyPosition)
+                            break;
                     }
                 }
             }
 
-            // Use createItemDebris to drop the item at the determined position
+            // Use a simple approach to throw the item from fountain to destination
             Game1.createItemDebris(
-                atlas,
-                dropPosition,
-                Game1.player.FacingDirection, // Direction to throw
+                atlas, 
+                new Vector2(ATLAS_TILE_X, ATLAS_TILE_Y) * Game1.tileSize, // Start at fountain position
+                1, // Direction to throw (right)
                 Game1.currentLocation);
 
             // Add a visual highlight to make it more noticeable
@@ -333,7 +359,7 @@ namespace WarpMod
                 300f,
                 6,
                 1,
-                dropPosition,
+                fountainPosition, // Show effect at fountain position
                 false,
                 false,
                 1f,

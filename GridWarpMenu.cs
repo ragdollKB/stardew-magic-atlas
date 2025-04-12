@@ -412,7 +412,7 @@ namespace WarpMod
             }
             else
             {
-                // Draw placeholder instructions and the main title when no map is shown
+                // Draw placeholder instructions and the open atlas image when no map is shown
                 DrawInstructionsAndTitle(b, mapContainerBounds);
             }
         }
@@ -420,21 +420,54 @@ namespace WarpMod
         // Updated DrawInstructions to accept bounds and draw title conditionally
         private void DrawInstructionsAndTitle(SpriteBatch b, Rectangle containerBounds)
         {
-            // Draw title - Centered, slightly higher (only when no map selected)
-            string title = "Magic Atlas";
-            Vector2 titleSize = Game1.dialogueFont.MeasureString(title) * TITLE_SCALE;
-            Vector2 titlePos = new Vector2(xPositionOnScreen + width / 2 - titleSize.X / 2, yPositionOnScreen + 25); // Adjusted Y
-            b.DrawString(Game1.dialogueFont, title, titlePos, Game1.textColor * 0.9f, 0f, Vector2.Zero, TITLE_SCALE, SpriteEffects.None, 1f);
-
-            // Draw instructions centered in the container
-            string instruction = "Select a category, then a location";
-            Vector2 textSize = Game1.dialogueFont.MeasureString(instruction);
-            Vector2 position = new Vector2(
-                containerBounds.X + (containerBounds.Width - textSize.X) / 2,
-                containerBounds.Y + (containerBounds.Height - textSize.Y) / 2
-            );
-
-            b.DrawString(Game1.dialogueFont, instruction, position, Game1.textColor * 0.6f); // Dimmer text
+            try
+            {
+                // Load the open atlas texture
+                Texture2D openAtlasTexture = Helper.ModContent.Load<Texture2D>("assets/items/atlas_sprite_open.png");
+                
+                // Draw the open atlas image in the center of the container
+                Vector2 imagePosition = new Vector2(
+                    containerBounds.X + (containerBounds.Width - openAtlasTexture.Width) / 2,
+                    containerBounds.Y + (containerBounds.Height - openAtlasTexture.Height) / 2
+                );
+                
+                b.Draw(
+                    openAtlasTexture,
+                    imagePosition,
+                    null,
+                    Color.White,
+                    0f,
+                    Vector2.Zero,
+                    1f,
+                    SpriteEffects.None,
+                    1f
+                );
+                
+                // Draw instructions at the bottom of the container
+                string instruction = "Select a category, then a location";
+                Vector2 textSize = Game1.dialogueFont.MeasureString(instruction);
+                Vector2 position = new Vector2(
+                    containerBounds.X + (containerBounds.Width - textSize.X) / 2,
+                    containerBounds.Y + containerBounds.Height - textSize.Y - 20  // Position at bottom with padding
+                );
+                
+                b.DrawString(Game1.dialogueFont, instruction, position, Game1.textColor * 0.8f);
+            }
+            catch (Exception ex)
+            {
+                // Fallback to text-only if image fails to load
+                Monitor?.Log($"Error loading open atlas image: {ex.Message}", LogLevel.Error);
+                
+                // Draw instructions centered in the container
+                string instruction = "Select a category, then a location";
+                Vector2 textSize = Game1.dialogueFont.MeasureString(instruction);
+                Vector2 position = new Vector2(
+                    containerBounds.X + (containerBounds.Width - textSize.X) / 2,
+                    containerBounds.Y + (containerBounds.Height - textSize.Y) / 2
+                );
+                
+                b.DrawString(Game1.dialogueFont, instruction, position, Game1.textColor * 0.6f); // Dimmer text
+            }
         }
 
         public override void receiveLeftClick(int x, int y, bool playSound = true)

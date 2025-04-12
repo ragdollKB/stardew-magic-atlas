@@ -35,8 +35,12 @@ namespace WarpMod
         // Store the config reference
         private readonly ModConfig config;
         
-        // Add description field
-        private string _description = "A magical atlas that lets you warp to discovered locations.";
+        // Custom name and description for the item
+        private readonly string _customName = "Magic Atlas";
+        private readonly string _customDescription = "A magical atlas that lets you warp to discovered locations.";
+        
+        // Track if we've got a custom texture loaded successfully
+        private static Texture2D _customTexture = null;
         
         /// <summary>
         /// Initialize the static properties of the class
@@ -46,6 +50,21 @@ namespace WarpMod
             Helper = helper;
             Monitor = monitor;
             Config = config;
+            
+            // Preload the texture
+            if (helper != null)
+            {
+                try
+                {
+                    _customTexture = helper.ModContent.Load<Texture2D>("assets/items/atlas_sprite_64x64.png");
+                    Monitor?.Log("Magic Atlas texture loaded successfully", LogLevel.Debug);
+                }
+                catch (Exception ex)
+                {
+                    Monitor?.Log($"Failed to load Magic Atlas texture: {ex.Message}", LogLevel.Error);
+                    _customTexture = null;
+                }
+            }
             
             Monitor?.Log("Magic Atlas item initialized", LogLevel.Debug);
         }
@@ -62,21 +81,19 @@ namespace WarpMod
         /// Default constructor - required for item serialization
         /// </summary>
         public MagicAtlasItem(ModConfig config = null)
-            : base("102", 1) // Fix: Use string item ID "102" and stack size 1
+            : base("68", 1) // Using Lost Book ID (68) as base which is more thematically appropriate
         {
             this.config = config ?? new ModConfig();
             
             // Configure item properties
-            this.Name = "Magic Atlas";
+            this.Name = _customName;
             this.bigCraftable.Value = false;
             this.Type = "Basic";
-            this.Category = -22; // Misc category value in Stardew Valley
+            this.Category = -8; // Special Item category which is more visible
             this.Price = 5000;
             this.Edibility = -300; // Inedible
             this.Stack = 1;
-            
-            // Set description using the field
-            this._description = "A magical atlas that lets you warp to discovered locations.";
+            this.ParentSheetIndex = 68; // Explicitly setting to match constructor (Lost Book)
         }
 
         /// <summary>
@@ -85,7 +102,6 @@ namespace WarpMod
         public new StardewValley.Object getOne()
         {
             MagicAtlasItem newItem = new MagicAtlasItem();
-            // Copy state if needed (nothing needed for now)
             return newItem;
         }
 
@@ -120,26 +136,111 @@ namespace WarpMod
         }
 
         /// <summary>
-        /// Override to draw the item
+        /// Override the display name
+        /// </summary>
+        public override string DisplayName
+        {
+            get { return _customName; }
+        }
+
+        /// <summary>
+        /// Override to always return our custom description
+        /// </summary>
+        public override string getDescription()
+        {
+            return _customDescription;
+        }
+
+        /// <summary>
+        /// Override to draw the item in world
+        /// </summary>
+        public override void draw(SpriteBatch spriteBatch, int x, int y, float alpha = 1)
+        {
+            if (_customTexture != null)
+            {
+                spriteBatch.Draw(
+                    _customTexture,
+                    new Vector2(x, y),
+                    new Rectangle(0, 0, 64, 64),
+                    Color.White * alpha,
+                    0f,
+                    Vector2.Zero,
+                    1f, 
+                    SpriteEffects.None,
+                    (float)(y + 32) / 10000f
+                );
+            }
+            else
+            {
+                base.draw(spriteBatch, x, y, alpha);
+            }
+        }
+
+        /// <summary>
+        /// Override to draw the item when held
+        /// </summary>
+        public override void drawWhenHeld(SpriteBatch spriteBatch, Vector2 objectPosition, Farmer f)
+        {
+            if (_customTexture != null)
+            {
+                spriteBatch.Draw(
+                    _customTexture,
+                    objectPosition,
+                    new Rectangle(0, 0, 64, 64),
+                    Color.White,
+                    0f,
+                    Vector2.Zero,
+                    1f,
+                    SpriteEffects.None,
+                    Math.Max(0f, (float)(f.GetBoundingBox().Bottom) / 10000f)
+                );
+            }
+            else
+            {
+                base.drawWhenHeld(spriteBatch, objectPosition, f);
+            }
+        }
+
+        /// <summary>
+        /// Override to draw the item in menu
         /// </summary>
         public override void drawInMenu(SpriteBatch spriteBatch, Vector2 location, float scaleSize, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow)
         {
             try
             {
-                // Get the item's texture
-                Texture2D texture = Helper?.ModContent.Load<Texture2D>("assets/items/MagicAtlas.png");
-                
-                if (texture != null)
+                if (_customTexture == null && Helper != null)
                 {
-                    // Draw the item with proper scaling
+                    // Try to load the texture if it failed earlier
+                    _customTexture = Helper.ModContent.Load<Texture2D>("assets/items/atlas_sprite_64x64.png");
+                }
+                
+                if (_customTexture != null)
+                {
+                    // Draw shadow if needed
+                    if (drawShadow)
+                    {
+                        spriteBatch.Draw(
+                            Game1.shadowTexture, 
+                            location + new Vector2(32f, 48f) * scaleSize,
+                            Game1.shadowTexture.Bounds,
+                            color * 0.5f,
+                            0f,
+                            new Vector2(Game1.shadowTexture.Bounds.Center.X, Game1.shadowTexture.Bounds.Center.Y),
+                            3f * scaleSize,
+                            SpriteEffects.None,
+                            layerDepth - 0.0001f
+                        );
+                    }
+                    
+                    // Draw the item without scaling since we're using a proper 64x64 image
                     spriteBatch.Draw(
-                        texture,
+                        _customTexture,
                         location + new Vector2(32f, 32f) * scaleSize,
-                        new Rectangle(0, 0, 16, 16),
+                        new Rectangle(0, 0, 64, 64),
                         color * transparency,
                         0f,
-                        new Vector2(8f, 8f),
-                        4.0f * scaleSize, // Scale properly to fill the inventory slot
+                        new Vector2(32f, 32f),
+                        scaleSize, // Apply only the menu's scale size
                         SpriteEffects.None,
                         layerDepth
                     );
@@ -150,8 +251,7 @@ namespace WarpMod
                 }
                 else
                 {
-                    // Fallback if texture fails to load
-                    Monitor?.Log("Failed to load Magic Atlas texture, using fallback drawing method", LogLevel.Warn);
+                    // Fall back to base class if our texture is unavailable
                     base.drawInMenu(spriteBatch, location, scaleSize, transparency, layerDepth, drawStackNumber, color, drawShadow);
                 }
             }
@@ -161,12 +261,6 @@ namespace WarpMod
                 Monitor?.Log($"Error drawing Magic Atlas: {ex.Message}", LogLevel.Error);
                 base.drawInMenu(spriteBatch, location, scaleSize, transparency, layerDepth, drawStackNumber, color, drawShadow);
             }
-        }
-        
-        // Override the description property getter
-        public override string getDescription()
-        {
-            return _description;
         }
     }
 }
