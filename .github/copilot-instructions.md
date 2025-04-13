@@ -45,13 +45,417 @@ Another example:
     // Add a weapon directly into player's inventory
     const int WEAP_ID = 19;                  // Shadow Dagger -- see Data/weapons
     Item weapon = new MeleeWeapon(WEAP_ID);  // MeleeWeapon is a class in StardewValley.Tools
-    Game1.player.addItemByMenuIfNecessary(weapon);
+    Game1.player.addItemByMenuIfNeceusssea ry(weapon);
 
 Remove an item from an inventory
 
 This is dependent on the inventory - rarely will you be calling this directly, as the game has functions for this for the Player, located in Farmer (in the main namespace).
 
 To do so, in most situations, just call .removeItemFromInventory(Item)
+
+Valid fields
+These are used in various places like machine data and shop data. These can only be used if the field's docs specifically mention that it allows item queries.
+
+Query format
+An item query consists of a string containing a query name with zero or more arguments. See the list of queries below.
+
+⚠ Item queries are partly case-sensitive. While some values are case-insensitive, this isn't consistent. Using the exact capitalization is recommended to avoid issues.
+
+Argument format
+Item queries can take space-delimited arguments. For example, RANDOM_ITEMS (F) 1376 1390 has three arguments: (F), 1376, and 1390.
+
+If you have spaces within an argument, you can surround it with quotes to keep it together. For example, LOST_BOOK_OR_ITEM "RANDOM_ITEMS (O)" passes RANDOM_ITEMS (O) as one argument. You can escape inner quotes with backslashes if needed.
+
+Remember that quotes and backslashes inside JSON strings need to be escaped too. For example, "ItemId": "LOST_BOOK_OR_ITEM \"RANDOM_ITEMS (O)\"" will send LOST_BOOK_OR_ITEM "RANDOM_ITEMS (O)" to the game code. Alternatively, you can use single-quotes for the JSON string instead, like "ItemId": 'LOST_BOOK_OR_ITEM "RANDOM_ITEMS (O)"'.
+
+Available queries
+General use
+query	effect
+ALL_ITEMS [type ID] [flags]	Every item provided by the item data definitions. If [type ID] is set to an item type identifier (like (O) for object), only returns items from the matching item data definition.
+The [flags] specify options to apply. If specified, they must be at the end of the argument list (with or without [type ID]). The flags can be any combination of:
+
+flag	effect
+@isRandomSale	Don't return items marked 'exclude from random sale' in Data/Furniture or Data/Objects.
+@requirePrice	Don't return items with a sell-to-player price below Gold.png1g.
+For example:
+
+ALL_ITEMS will return every item in the game.
+ALL_ITEMS @isRandomSale will return every item in the game that's not excluded from random sale.
+ALL_ITEMS (F) @isRandomSale will return every furniture item in the game that's not excluded from random sale.
+FLAVORED_ITEM <type> <ingredient ID> [ingredient flavor ID]	A flavored item like Apple Wine. The <type> can be one of Wine, Jelly, Pickle, Juice, Roe, AgedRoe, Honey, Bait, DriedFruit, DriedMushroom, or SmokedFish. The <ingredient ID> is the qualified or unqualified item ID which provides the flavor (like Apple in Apple Wine). For Honey, you can set the <flavor ID> to -1 for Wild Honey.
+For aged roe only, the [ingredient flavor ID] is the flavor of the <ingredient ID>. For example, FLAVORED_ITEM AgedRoe (O)812 128 creates Aged Pufferfish Roe (812 is roe and 128 is pufferfish).
+
+RANDOM_ITEMS <type definition ID> [min ID] [max ID] [flags]	All items from the given type definition ID in randomized order, optionally filtered to those with a numeric ID in the given [min ID] and [max ID] range (inclusive).
+The [flags] specify options to apply. If specified, they must be at the end of the argument list (with or without [min ID] and/or [max ID]). The flags can be any combination of:
+
+The flags can be any combination of:
+
+flag	effect
+@isRandomSale	Don't return items marked 'exclude from random sale' in Data/Furniture or Data/Objects.
+@requirePrice	Don't return items with a sell-to-player price below Gold.png1g.
+For example, you can sell a random wallpaper for Gold.png200g in Data/Shops:
+
+{
+    "ItemId": "RANDOM_ITEMS (WP)",
+    "MaxItems": 1,
+    "Price": 200
+}
+Or a random house plant:
+
+{
+    "ItemId": "RANDOM_ITEMS (F) 1376 1390",
+    "MaxItems": 1
+}
+Or a random custom item added by a mod by its item ID prefix:
+
+{
+    "ItemId": "RANDOM_ITEMS (O)",
+    "MaxItems": 1,
+    "PerItemCondition": "ITEM_ID_PREFIX Target AuthorName_ModName_"
+}
+Or 10 random objects with any category except -13 or -14:
+
+{
+    "ItemId": "RANDOM_ITEMS (O)",
+    "MaxItems": 10,
+    "PerItemCondition": "ITEM_CATEGORY, !ITEM_CATEGORY Target -13 -14"
+}
+Specific items
+query	effect
+DISH_OF_THE_DAY	The Saloon's dish of the day.
+LOST_BOOK_OR_ITEM [alternate query]	A lost book if the player hasn't found them all yet, else the result of the [alternate query] if specified, else nothing.
+For example, LOST_BOOK_OR_ITEM (O)770 returns mixed seeds if the player found every book already.
+
+RANDOM_BASE_SEASON_ITEM	A random seasonal vanilla item which can be found by searching garbage cans, breaking containers in the mines, etc.
+SECRET_NOTE_OR_ITEM [alternate query]	A secret note (or journal scrap on the island) if the player hasn't found them all yet, else the result of the [alternate query] if specified, else nothing.
+For example, SECRET_NOTE_OR_ITEM (O)390 returns clay if the player found every secret note already.
+
+SHOP_TOWN_KEY	The special town key item. This is only valid in shops.
+Specialized
+query	effect
+ITEMS_SOLD_BY_PLAYER <shop location>	Random items the player has recently sold to the <shop location>, which can be one of SeedShop (Pierre's store) or FishShop (Willy's fish shop).
+LOCATION_FISH <location> <bobber tile> <depth>	A random item that can be found by fishing in the given location. The <location> should be the internal name of the location, <bobber tile> is the position of the fishing rod's bobber in the water (in the form <x> <y>), and <depth> is the bobber's distance from the nearest shore measured in tiles (where 0 is directly adjacent to the shore).
+Careful: since the target location might use LOCATION_FISH queries in its list, it's easy to cause a circular reference by mistake (e.g. location A gets fish from B, which gets fish from A). If this happens, the game will log an error and return no item.
+
+MONSTER_SLAYER_REWARDS	All items unlocked by monster eradication goals which have been completed and collected from Gil by the current player at the current time. The list sort order follows the order of monsters in MonsterSlayerQuests.xnb, e.g., Slime Ring, Savage Ring, Burglar Ring, etc.
+MOVIE_CONCESSIONS_FOR_GUEST [NPC name]	Get the movie concessions shown when watching a movie with the given [NPC name]. If omitted, the NPC defaults to the one currently invited to watch a movie (or Abigail if none).
+RANDOM_ARTIFACT_FOR_DIG_SPOT	A random item which is defined in Data/Objects with the Arch (artifact) type, and whose spawn rules in the Miscellaneous field match the current location and whose random probability passes. This is mainly used by artifact spots.
+TOOL_UPGRADES [tool ID]	The tool upgrades listed in Data/Shops whose conditions match the player's inventory (i.e. the same rules as Clint's tool upgrade shop). If [tool ID] is specified, only upgrades which consume that tool ID are shown.
+Item spawn fields
+Item spawn fields are a common set of fields to use item queries in data assets like machines and shops. These are only available for data assets which specifically mention they support item spawn fields in their docs.
+
+field	effect
+ID	The unique string ID for this entry (not the item itself) within the current list.
+This is semi-optional — if omitted, it'll be auto-generated from the ItemId, RandomItemId, and IsRecipe fields. However multiple entries with the same ID may cause unintended behavior (e.g. shop items reducing each others' stock limits), so it's often a good idea to set a globally unique ID instead.
+
+ItemId	One of:
+the qualified or unqualified item ID (like (O)128 for a pufferfish);
+or an item query to dynamically choose one or more items.
+RandomItemId	(Optional) A list of item IDs to randomly choose from, using the same format as ItemId (including item queries). If set, ItemId is optional and ignored. Each entry in the list has an equal probability of being chosen. For example:
+// wood, stone, or pizza
+"RandomItemId": [ "(O)388", "(O)390", "(O)206" ]
+Condition	(Optional) A game state query which indicates whether this entry should be applied. Defaults to always true.
+Note: not supported for weapon projectiles.
+
+PerItemCondition	(Optional) A game state query which indicates whether an item produced from the other fields should be returned. Defaults to always true.
+For example, this can be used to filter queries like RANDOM_ITEMS:
+
+// random mineral
+"ItemId": "RANDOM_ITEMS (O)",
+"PerItemCondition": "ITEM_CATEGORY Target -12"
+MaxItems	(Optional) If this entry produces multiple separate item stacks, the maximum number to return. (This does not affect the size of each stack; see MinStack and MaxStack for that.) Default unlimited.
+IsRecipe	(Optional) Whether to get the crafting/cooking recipe for the item, instead of the item itself. Default false.
+The game will unlock the recipe with the ID equal to the item query's ObjectInternalName field, or the target item's internal Name (which defaults to its ID) if not set.
+
+Quality	(Optional) The quality of the item to find. One of 0 (normal), 1 (silver), 2 (gold), or 4 (iridium). Invalid values will snap to the closest valid one (e.g. 7 will become iridium). Default -1, which keeps the value set by the item query (usually 0).
+MinStack	(Optional) The item's minimum and default stack size. Default -1, which keeps the value set by the item query (usually 1).
+MaxStack	(Optional) If set to a value higher than MinStack, the stack is set to a random value between them (inclusively). Default -1.
+ObjectInternalName	(Optional) For objects only, the internal name to use. Defaults to the item's name in Data/Objects.
+ObjectDisplayName	(Optional) For objects only, a tokenizable string for the item's display name. Defaults to the item's display name in Data/Objects. This can optionally contain %DISPLAY_NAME (the item's default display name) and %PRESERVED_DISPLAY_NAME (the preserved item's display name if applicable, e.g. if set via PreserveId in machine data).
+Careful: text in this field will be saved permanently in the object's info and won't be updated when the player changes language or the content pack changes. That includes Content Patcher translations (like %DISPLAY_NAME {{i18n: wine}}), which will save the translated text for the current language. Instead, add the text to a strings asset like Strings/Objects and then use the [LocalizedText] token.
+
+For example, here's how you'd create flavored oils with Content Patcher: 
+ToolUpgradeLevel	(Optional) For tools only, the initial upgrade level for the tool when created (like Copper vs Gold Axe, or Training Rod vs Iridium Rod). Default -1, which keeps the value set by the item query (usually 0).
+QualityModifiers
+StackModifiers	(Optional) Quantity modifiers applied to the Quality or Stack value. Default none.
+The quality modifiers operate on the numeric quality values (i.e. 0 = normal, 1 = silver, 2 = gold, and 4 = iridium). For example, silver × 2 is gold.
+
+QualityModifierMode
+StackModifierMode	(Optional) Quantity modifier modes which indicate what to do if multiple modifiers in the QualityModifiers or StackModifiers field apply at the same time. Default Stack.
+ModData	(Optional) The mod data fields to add to created items. Default none.
+For example:
+
+"ModData": {
+    "Example.ModId_FieldName": "some custom data"
+}
+For C# mod authors
+Use queries in custom data assets
+You can use the ItemQueryResolver class to parse item queries.
+
+For example, let's say a custom data model uses item spawn fields to choose which gifts are added to the starting gift box:
+
+public class InitialGiftsModel
+{
+    public List<GenericSpawnItemData> Items = new();
+}
+You can spawn items from it like this:
+
+ItemQueryContext itemQueryContext = new();
+foreach (GenericSpawnItemData entry in model.Items)
+{
+    Item item = ItemQueryResolver.TryResolveRandomItem(entry, itemQueryContext, logError: (query, message) => this.Monitor.Log($"Failed parsing item query '{query}': {message}", LogLevel.Warn));
+    // or TryResolve to get all items
+}
+You can also use GenericSpawnItemDataWithCondition to combine it with game state queries:
+
+ItemQueryContext itemQueryContext = new();
+foreach (GenericSpawnItemDataWithCondition entry in model.Items)
+{
+    if (!GameStateQuery.CheckConditions(entry.Condition))
+        continue;
+
+    Item item = ItemQueryResolver.TryResolveRandomItem(entry, itemQueryContext, logError: (query, message) => this.Monitor.Log($"Failed parsing item query '{query}': {message}", LogLevel.Warn));
+}
+Add custom item queries
+You can define new item queries ItemQueryResolver.Register("Example.ModId_QueryName", handleQueryMethod). To avoid conflicts, custom query names should apply the unique string ID conventions.
+ Item IDs
+Every item is identified in the game data using a unique item ID. This has two forms:
+
+The unqualified item ID (item.ItemId) is a unique string ID for the item, like 128 (vanilla item) or Example.ModId_Watermelon (custom item). For legacy reasons, the unqualified ID for vanilla items may not be globally unique; for example, Pufferfish (object 128) and Mushroom Box (bigcraftable 128) both have item ID 128.
+The qualified item ID (item.QualifiedItemId) is a globally unique identifier which combines the item's type ID and unqualified item ID, like (O)128 for object ID 128.
+With SMAPI installed, you can run the list_items console command in-game to search item IDs.
+
+Note: mods created before Stardew Valley 1.6 may use the item.ParentSheetIndex field as an item identifier. This is not a valid identifier; multiple items of the same type may have the same sprite index for different textures.
+
+Item types
+Items are defined by item type data definitions, which handle parsing data of a certain type. For example, the game's ObjectDataDefinition class handles producing object-type items by parsing the Data/Objects asset.
+
+Each definition has a unique ID like (O), which is used to form globally unique qualified item IDs. In C# code, this is tracked by the item.TypeDefinitionId field, which matches ItemRegistry.type_* constants for vanilla item types.
+
+These are the item types for which custom items can added/edited:
+
+item type	type identifier	data asset	brief summary
+Objects	(O)	Data/Objects	The most common item type. Depending on their data, they can be placed in the world, picked up, eaten, sold to shops, etc.
+Big craftables	(BC)	Data/BigCraftables	Items which can be placed in the world and are two tiles tall (instead of one like objects).
+Boots	(B)	Data/Boots	Items which can be equipped in the player's boots slot. These change the player sprite and may provide buffs.
+Furniture	(F)	Data/Furniture	Decorative items which can be placed in the world. In some cases players can sit on them or place items on them.
+Hats	(H)	Data/Hats	Items which can be equipped in the player's hat slot. These change the player sprite.
+Mannequins	(M)	Data/Mannequins	Decorative items which can be placed in the world, and used to store and display clothing.
+Pants	(P)	Data/Pants	Items which can be equipped in the player's pants slot. These change the player sprite.
+Shirts	(S)	Data/Shirts	Items which can be equipped in the player's shirt slot. These change the player sprite.
+Tools	(T)	Data/Tools	Items that can be swung or used by the player to perform some effect (e.g. dig dirt, chop trees, milk or shear animals, etc).
+Trinkets	(TR)	Data/Trinkets	Items that can be equipped in the player's trinket slot to enable special effects.
+Wallpaper & flooring	(WP) and (FL)	Data/AdditionalWallpaperFlooring	Items which can be applied to a decoratable location (e.g. a farmhouse or shed) to visually change its floor or wall design. (These are separate from placeable items like brick floor.)
+Weapons	(W)	Data/Weapons	Items which can be swung or used by the player to damage monsters.
+When resolving an unqualified item ID like 128, the game will get the first item type for which it exists in this order: object, big craftable, furniture, weapon, boots, hat, mannequin, pants, shirt, tool, trinket, wallpaper, and floorpaper.
+
+Item sprites
+For each item type, the game has two files in its Content folder (which can be unpacked for editing):
+
+a data asset for the text data for its items (names, descriptions, prices, etc);
+and a spritesheet for the in-game item icons.
+Each item has a ParentSheetIndex field which is its position in the item type's spritesheet, starting at 0 in the top-left and incrementing by one as you move across and then down. For example, hat #0 is the first sprite in Characters/Farmer/hats.
+
+Define a custom item
+You can define custom items for most vanilla item types using only Content Patcher or SMAPI's content API.
+
+For example, this content pack adds a new Pufferchick item with a custom image, custom gift tastes, and a custom crop that produces it. Note that item references in other data assets like Data/Crops and Data/NPCGiftTastes use the item ID.
+
+{
+    "Format": "2.5.0",
+    "Changes": [
+        // add item
+        {
+            "Action": "EditData",
+            "Target": "Data/Objects",
+            "Entries": {
+                "{{ModId}}_Pufferchick": {
+                    "Name": "{{ModId}}_Pufferchick", // best practice to match the ID, since it's sometimes used as an alternate ID (e.g. in Data/CraftingRecipes)
+                    "Displayname": "Pufferchick",
+                    "Description": "An example object.",
+                    "Type": "Seeds",
+                    "Category": -74,
+                    "Price": 1200,
+
+                    "Texture": "Mods/{{ModId}}/Objects",
+                    "SpriteIndex": 0
+                }
+            }
+        },
+
+        // add gift tastes
+        {
+            "Action": "EditData",
+            "Target": "Data/NPCGiftTastes",
+            "TextOperations": [
+                {
+                    "Operation": "Append",
+                    "Target": ["Entries", "Universal_Love"],
+                    "Value": "{{ModId}}_Pufferchick",
+                    "Delimiter": " " // if there are already values, add a space between them and the new one
+                }
+            ]
+        },
+
+        // add crop (Pufferchick is both seed and produce, like coffee beans)
+        {
+            "Action": "EditData",
+            "Target": "Data/Crops",
+            "Entries": {
+                "{{ModId}}_Pufferchick": {
+                    "Seasons": [ "spring", "summer", "fall" ],
+                    "DaysInPhase": [ 1, 1, 1, 1, 1 ],
+                    "HarvestItemId": "{{ModId}}_Pufferchick",
+
+                    "Texture": "Mods/{{ModId}}/Crops",
+                    "SpriteIndex": 0
+                }
+            }
+        },
+
+        // add item + crop images
+        {
+            "Action": "Load",
+            "Target": "Mods/{{ModId}}/Crops, Mods/{{ModId}}/Objects",
+            "FromFile": "assets/{{TargetWithoutPath}}.png" // assets/Crops.png, assets/Objects.png
+        }
+    ]
+}
+Most item data assets work just like Data/Objects. See also specific info for custom fruit trees, custom tools, and melee weapons.
+
+Error items
+When an item is broken (e.g. due to deleting the mod which adds it), it's represented in-game as a default Error Item with a 🛇 sprite. This keeps the previous item data in case the item data is re-added.
+
+Common data
+Quality
+Each item has a quality level which (depending on the item type) may affect its price, health boost, etc. The valid qualities are:
+
+quality	value	constant
+normal	0	Object.lowQuality
+silver	1	Object.medQuality
+gold	2	Object.highQuality
+iridium	4	Object.bestQuality
+Categories
+Each item also has a category (represented by a negative integer). In code, you can get an item's category value from item.Category, and its translated name from item.getCategoryName(). Here are the valid categories:
+
+value	internal constant	context tag	English translation	Color	Properties
+-2	Object.GemCategory	category_gem	Mineral	#6E005A	Affected by Gemologist profession
+-4	Object.FishCategory	category_fish	Fish	#00008B (DarkBlue)	Affected by Fisher and Angler professions
+-5	Object.EggCategory	category_egg	Animal Product	#FF0064	Affected by Rancher profession, can be used in a slingshot
+-6	Object.MilkCategory	category_milk	Animal Product	#FF0064	Affected by Rancher profession
+-7	Object.CookingCategory	category_cooking	Cooking	#DC3C00	
+-8	Object.CraftingCategory	category_crafting	Crafting	#943D28	Is Placeable
+-9	Object.BigCraftableCategory	category_big_craftable			Is Placeable
+-12	Object.mineralsCategory	category_minerals	Mineral	#6E005A	Affected by Gemologist profession
+-14	Object.meatCategory	category_meat	Animal Product	#FF0064	
+-15	Object.metalResources	category_metal_resources	Resource	#406672	
+-16	Object.buildingResources	category_building_resources	Resource	#406672	
+-17	Object.sellAtPierres	category_sell_at_pierres			
+-18	Object.sellAtPierresAndMarnies	category_sell_at_pierres_and_marnies	Animal Product	#FF0064	Affected by Rancher profession
+-19	Object.fertilizerCategory	category_fertilizer	Fertilizer	#708090 (SlateGray)	Is Placeable, is always passable
+-20	Object.junkCategory	category_junk	Trash	#696969 (DimGray)	
+-21	Object.baitCategory	category_bait	Bait	#8B0000 (DarkRed)	Can be attached to a fishing rod
+-22	Object.tackleCategory	category_tackle	Fishing Tackle	#008B8B (DarkCyan)	Can be attached to a fishing rod, cannot stack
+-23	Object.sellAtFishShopCategory	category_sell_at_fish_shop			
+-24	Object.furnitureCategory	category_furniture	Decor	#9650BE	
+-25	Object.ingredientsCategory	category_ingredients	Cooking		
+-26	Object.artisanGoodsCategory	category_artisan_goods	Artisan Goods	#009B6F	Affected by Artisan profession
+-27	Object.syrupCategory	category_syrup	Artisan Goods	#009B6F	Affected by Tapper profession
+-28	Object.monsterLootCategory	category_monster_loot	Monster Loot	#320A46	
+-29	Object.equipmentCategory	category_equipment			
+-74	Object.SeedsCategory	category_seeds	Seed	#A52A2A (Brown)	Is Placeable, is always passable
+-75	Object.VegetableCategory	category_vegetable	Vegetable	#008000 (Green)	Affected by Tiller profession, can be used in a slingshot
+-79	Object.FruitsCategory	category_fruits	Fruit	#FF1493 (DeepPink)	Affected by Tiller profession (if not foraged), can be used in a slingshot
+-80	Object.flowersCategory	category_flowers	Flower	#DB36D3	Affected by Tiller profession
+-81	Object.GreensCategory	category_greens	Forage	#0A8232	
+-95	Object.hatCategory	category_hat			
+-96	Object.ringCategory	category_ring			
+-97	Object.bootsCategory	category_boots			
+-98	Object.weaponCategory	category_weapon			
+-99	Object.toolCategory	category_tool			
+-100	Object.clothingCategory	category_clothing			
+-101	Object.trinketCategory	category_trinket			
+-102	Object.booksCategory			#552F1B	
+-103	Object.skillBooksCategory			#7A5d27	
+-999	Object.litterCategory	category_litter			
+Console commands 
+Context tags
+A context tag is an arbitrary data label like category_gem or item_apple attached to items. These provide metadata about items (e.g. their color, quality, category, general groupings like alcohol or fish, etc), and may affect game logic (e.g. machine processing).
+
+See Modding:Context tags for more info.
+
+Specific item types
+For docs about each item type (e.g. objects or weapons), see the item types table above.
+
+For C# mods
+Identify items
+You can uniquely identify items by checking their item ID fields. For example:
+
+bool isPufferfish = item.QualifiedItemId == "(O)128";
+The ItemRegistry class also provides methods to work with items. For example:
+
+// check if item would be matched by a qualified or unqualified item ID
+bool isPufferfish = ItemRegistry.HasItemId(item, "128");
+
+// qualify an item ID if needed
+string pufferfishQualifiedId = ItemRegistry.QualifyItemId("128"); // returns "(O)128"
+Note that flavored items like jellies and wine don't have their own ID. For example, Blueberry Wine and Wine are both (O)348. You can get the flavor item ID from the preservedParentSheetIndex field; for example, Blueberry Wine will have the item ID for blueberry. (Despite the name, it contains the item's ID rather than its ParentSheetIndex).
+
+Create item instances
+The ItemRegistry.Create method is the main way to construct items. For example:
+
+Item pufferfish = ItemRegistry.Create("(O)128"); // can optionally specify count and quality
+If the ID doesn't match a real item, the ItemRegistry will return an Error Item by default. You can override that by setting allowNull: true when calling the method.
+
+You can also get a specific value type instead of Item if needed. This will throw a descriptive exception if the type isn't compatible (e.g. you try to convert furniture to boots).
+
+Boots boots = ItemRegistry.Create<Boots>("(B)505"); // Rubber Boots
+When creating an item manually instead, make sure to pass its ItemId (not QualifiedItemId) to the constructor. For example:
+
+Item pufferfish = new Object("128", 1);
+Work with item metadata
+The ItemRegistry class provides several methods for working with item metadata. Some useful methods include:
+
+method	effect
+ItemRegistry.Create	Create an item instance.
+ItemRegistry.Exists	Get whether a qualified or unqualified item ID matches an existing item. For example:
+bool pufferfishExists = ItemRegistry.Exists("(O)128");
+ItemRegistry.IsQualifiedId	Get whether the given item ID is qualified with the type prefix (like (O)128 instead of 128).
+ItemRegistry.QualifyItemId	Get the unique qualified item ID given an unqualified or qualified one. For example:
+string qualifiedId = ItemRegistry.QualifyItemId("128"); // returns (O)128
+ItemRegistry.GetMetadata	Get high-level info about an item:
+// get info about Rubber Boots
+ItemMetadata metadata = ItemRegistry.GetMetadata("(B)505");
+
+// get item ID info
+$"The item has unqualified ID {metadata.LocalId}, qualified ID {metadata.QualifiedId}, and is defined by the {metadata.TypeIdentifier} item data definition.";
+
+// does the item exist in the data files?
+bool exists = metadata.Exists();
+And get common parsed item data:
+
+// get parsed info
+ParsedItemData data = metadata.GetParsedData();
+$"The internal name is {data.InternalName}, translated name {data.DisplayName}, description {data.Description}, etc.";
+
+// draw an item sprite
+Texture2D texture = data.GetTexture();
+Rectangle sourceRect = data.GetSourceRect();
+spriteBatch.Draw(texture, Vector2.Zero, sourceRect, Color.White);
+And create an item:
+
+Item item = metadata.CreateItem();
+And get the type definition (note that this is very specialized, and you should usually use ItemRegistry instead to benefit from its caching and optimizations):
+
+IItemDataDefinition typeDefinition = info.GetTypeDefinition();
+ItemRegistry.ResolveMetadata	Equivalent to ItemRegistry.GetMetadata, except that it'll return null if the item doesn't exist.
+ItemRegistry.GetData	Get the parsed data about an item, or null if the item doesn't exist. This is a shortcut for ItemRegistry.ResolveMetadata(id)?.GetParsedData(); see the previous method for info on the parsed data.
+ItemRegistry.GetDataOrErrorItem	Equivalent to ItemRegistry.GetData, except that it'll return info for an Error Item if the item doesn't exist (e.g. for drawing in inventory).
+ItemRegistry.GetErrorItemName	Get a translated Error Item label.
+Define custom item types
+You can implement IItemDataDefinition for your own item type, and call ItemRegistry.AddTypeDefinition to register it. This provides all the logic needed by the game to handle the item type: where to get item data, how to draw them, etc.
+
+This is extremely specialized, and multiplayer compatibility is unknown. Most mods should add custom items within the existing types instead.
 
 Locations
 
@@ -185,6 +589,162 @@ if (Game1.activeClickableMenu is GameMenu menu)
   }
 }
 To create a custom menu, you need to create a subclass of IClickableMenu and assign it to Game1.activeClickableMenu. At its most basic, a menu is basically just a few methods you override (usually draw and receiveLeftClick at a minimum). When draw is called, you draw whatever you want to the screen; when receiveLeftClick is called, you check if it's within one of the clickable areas and handle it. Normally you'd use some convenience classes like ClickableTextureButton (which has a texture and position, and simplifies checking if they were clicked), though that's not strictly necessary. Here's a simple menu you can use as an example, which draws the birthday menu for Birthday Mod.
+
+Assets
+Farm type data
+You can define custom farm types by editing the Data/AdditionalFarms asset.
+
+This consists of a list of models, where each model has the fields listed below.
+
+field	description
+ID	A unique string ID for the farm type.
+TooltipStringPath	The translation key containing the translatable farm name and description. For example, Strings/UI:Farm_Description will get it from the Farm_Description entry in the Strings/UI file.
+The translated text must be in the form "<name>_<description>", like "Pineapple Farm_A farm shaped like a pineapple".
+
+MapName	The asset name for the farm's map asset, relative to the Maps folder. For example, Farm_Pineapple would load Maps/Farm_Pineapple.
+IconTexture	(Optional) The asset name for a 22x20 pixel icon texture, shown on the 'New Game' and co-op join screens.
+WorldMapTexture	(Optional) The asset name for a 131x61 pixel texture that's drawn over the farm area in the in-game world map.
+ModData	(Optional) The mod data fields for this farm type, which can be accessed in C# code via Game1.GetFarmTypeModData(key).
+Farm map
+The farm map contains the general appearance and layout of your farm. Modding:Maps describes the basic process of creating a map.
+
+Copying and editing an existing farm map is recommended to avoid problems with missing information. The map must be added to the game files, and not replace an existing one.
+
+Farm map properties
+You can customize the farm behavior by setting map properties in the map asset.
+
+When testing map property changes, it's best to create a new save since some of these are only applied when the save is created. These properties are optional, and the game will use default values for any properties that aren't specified.
+
+Some notable map properties are:
+
+Warp & map positions set the player position when arriving on the farm (e.g. BackwoodsEntry when arriving from the backwoods, or WarpTotemEntry when using a warp totem or farm obelisk), and the default positions of some location contents (e.g. MailboxLocation for the default mailbox position).
+Farmhouse interior properties set the appearance and contents of the farmhouse (e.g. FarmHouseFlooring for the default flooring, or FarmHouseStarterGift for what's in the starter giftbox).
+Fishing properties override fishing and crab pot behavior.
+Plants, forage, & item spawning properties override how crops, forage, artifact spots, etc work on the farm.
+Location data
+Optionally, you can override additional farm location behavior by editing Data/Locations. Each farm type can have its own entry, with a key in the form Farm_<farm type ID>. If omitted, it defaults to the location data for the standard farm layout.
+
+This can be used to override forage, fish, crab pot catches, artifact spots, etc.
+
+For custom farms, some fields should have specific values to preserve expected behavior:
+
+field	description
+DisplayName	A tokenizable string for the farm name. It should contain at least the FarmName token to be sure the farm name is shown. The standard value is [LocalizedText Strings\\StringsFromCSFiles:MapPage.cs.11064 [EscapedText [FarmName]]].
+CreateOnLoad	Must be null or omitted. Any other value will create duplicate locations.
+CanPlantHere	Should be true or omitted. If false, crops can't be grown on your farm.
+Example
+For example, this Content Patcher pack adds a farm type with custom location data.
+
+{
+    "Changes": [
+        // add farm type
+        {
+            "Action": "EditData",
+            "Target": "Data/AdditionalFarms",
+            "Entries": {
+                "{{ModId}}_PineappleFarm": { // for technical reasons, you need to specify the ID here *and* in the 'ID' field
+                    "ID": "{{ModId}}_PineappleFarm",
+                    "TooltipStringPath": "Strings/UI:{{ModId}}",
+                    "MapName": "{{ModId}}",
+                    "IconTexture": "Mods/{{ModId}}/Icon",
+                    "WorldMapTexture": "Mods/{{ModId}}/WorldMap"
+                }
+            }
+        },
+
+        // add farm name + description
+        {
+            "Action": "EditData",
+            "Target": "Strings/UI",
+            "Entries": {
+                "{{ModId}}": "Pineapple Farm_A farm shaped like a pineapple!" // tip: use {{i18n}} to translate it
+            }
+        },
+
+        // load map
+        {
+            "Action": "Load",
+            "Target": "Maps/{{ModId}}",
+            "FromFile": "assets/map.tmx"
+        },
+
+        // load icon
+        {
+            "Action": "Load",
+            "Target": "Mods/{{ModId}}/Icon, Mods/{{ModId}}/WorldMap",
+            "FromFile": "assets/{{TargetWithoutPath}}.png"
+        },
+
+        // custom location data
+        {
+            "Action": "EditData",
+            "Target": "Data/Locations",
+            "Entries": {
+                "Farm_{{ModId}}_PineappleFarm": {
+                    "DisplayName": "[LocalizedText Strings\\StringsFromCSFiles:MapPage.cs.11064 [EscapedText [FarmName]]]",
+                    "CanPlantHere": true,
+                    "DefaultArrivalTile": {"X": 64, "Y": 15},
+                    "MinDailyWeeds": 5,
+                    "MaxDailyWeeds": 11,
+                    "ArtifactSpots": [
+                        // default artifact data
+                        {
+                            "Id": "Coal",
+                            "ItemId": "(O)382",
+                            "Chance": 0.5,
+                            "MaxStack": 3
+                        },
+                        {
+                            "Id": "MixedSeeds",
+                            "ItemId": "(O)770",
+                            "Chance": 0.1,
+                            "MaxStack": 3
+                        },
+                        {
+                            "Id": "Stone",
+                            "ItemId": "(O)390",
+                            "Chance": 0.25,
+                            "MaxStack": 3
+                        },
+                        // custom artifacts
+                        {
+                            "Id": "SpringSeeds",
+                            "ItemId": "(O)495",
+                            "Chance": 0.2,
+                            "MaxStack": 4,
+                            "Condition": "SEASON Spring",
+                            "Precedence": 1
+                        },
+                        {
+                            "Id": "SummerSeeds",
+                            "ItemId": "(O)496",
+                            "Chance": 0.2,
+                            "MaxStack": 4,
+                            "Condition": "SEASON Summer",
+                            "Precedence": 1
+                        },
+                        {
+                            "Id": "FallSeeds",
+                            "ItemId": "(O)497",
+                            "Chance": 0.2,
+                            "MaxStack": 4,
+                            "Condition": "SEASON Fall",
+                            "Precedence": 1
+                        },
+                        {
+                            "Id": "WinterSeeds",
+                            "ItemId": "(O)498",
+                            "Chance": 0.2,
+                            "MaxStack": 4,
+                            "Condition": "SEASON Winter",
+                            "Precedence": 1
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}
 
 DialogueBox
 
@@ -1332,3 +1892,23 @@ You can run debug worldMapLines in the SMAPI console window to enable the world 
 
 The world map with the debug view enabled.
 You can optionally specify which types to highlight, like debug worldMapLines areas positions tooltips.
+
+Default starting town locations are:
+1 River Road
+1 Willow Lane
+2 Willow Lane
+Blacksmith
+Community Center
+Dog Pen
+Graveyard
+Harvey's Clinic
+Ice Cream Stand
+Joja Warehouse
+JojaMart
+Mayor's Manor
+Movie Theater
+Museum
+Pierre's General Store
+The Sewers
+The Stardrop Saloon
+Trailer

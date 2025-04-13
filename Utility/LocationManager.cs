@@ -386,54 +386,30 @@ namespace WarpMod.Utility
             // Time of day restrictions
             bool isDaytime = Game1.timeOfDay >= 600 && Game1.timeOfDay < 2400;
             
-            switch (locationName)
+            // Create a dictionary of location-specific conditions to simplify the logic
+            var specialConditions = new Dictionary<string, Func<bool>>
             {
-                // Locations only open during the day
-                case "SeedShop": // Pierre's
-                case "JojaMart":
-                    // Wednesday is day 3 in Stardew Valley's calendar (0 = Sunday, 3 = Wednesday)
-                    return isDaytime && Game1.timeOfDay < 1700 && !Game1.isFestival() && (int)Game1.Date.DayOfWeek != 3; // Closed Wednesday
+                // Public buildings with specific hours
+                ["SeedShop"] = () => isDaytime && Game1.timeOfDay < 1700 && !Game1.isFestival() && (int)Game1.Date.DayOfWeek != 3,
+                ["Blacksmith"] = () => isDaytime && Game1.timeOfDay < 1600 && !Game1.isFestival() && (int)Game1.Date.DayOfWeek != 5,
+                ["ScienceHouse"] = () => isDaytime && Game1.timeOfDay < 1500 && !Game1.isFestival() && (int)Game1.Date.DayOfWeek != 3,
                 
-                case "Saloon": // Stardrop Saloon
-                    return Game1.timeOfDay >= 1200 && !Game1.isFestival(); // Open from noon
+                // Weather dependent locations
+                ["Beach"] = () => !Game1.isLightning || Config.AllowDangerousLocations,
                 
-                case "ScienceHouse": // Robin's
-                case "Blacksmith": // Clint's
-                case "AnimalShop": // Marnie's
-                    return isDaytime && Game1.timeOfDay < 1600 && !Game1.isFestival();
-                    
-                case "Hospital": // Harvey's Clinic
-                    // Wednesday is day 3 in Stardew Valley's calendar
-                    return isDaytime && Game1.timeOfDay < 1500 && !Game1.isFestival() && (int)Game1.Date.DayOfWeek != 3; // Closed Wednesday
-                
-                case "Beach": // Check for storms
-                    if (Game1.isLightning)
-                    {
-                        return Config.AllowDangerousLocations; // Optional: Limit beach access during storms
-                    }
-                    return true;
-                    
-                case "Mine": // Mines
-                case "SkullCave": // Skull Cavern
-                    // Optionally restrict dangerous locations when health is low
-                    if (Game1.player.health < Game1.player.maxHealth * 0.25 && !Config.AllowDangerousLocations)
-                    {
-                        return false;
-                    }
-                    return true;
-                
-                // Desert access affected by bus schedule
-                case "Desert":
-                    // If configured to be strict about bus schedule
-                    if (Config.StrictTransportation && Game1.timeOfDay < 1000)
-                    {
-                        return false; // Bus doesn't run before 10am
-                    }
-                    return true;
-                
-                default:
-                    return true; // Most locations have no time restrictions
+                // Dangerous locations
+                ["Mine"] = () => Config.AllowDangerousLocations || Game1.player.health > 30,
+                ["SkullCave"] = () => Config.AllowDangerousLocations || Game1.player.health > 50
+            };
+            
+            // Check if we have a special condition for this location
+            if (specialConditions.TryGetValue(locationName, out var condition))
+            {
+                return condition();
             }
+            
+            // Default is accessible
+            return true;
         }
         
         /// <summary>
@@ -441,47 +417,33 @@ namespace WarpMod.Utility
         /// </summary>
         private bool HasSufficientFriendshipAccess(string locationName)
         {
-            try
+            // Basic homes are always accessible
+            string[] basicHomes = new[] { 
+                "HaleyHouse", "SamHouse", "JoshHouse", "ScienceHouse" 
+            };
+            
+            if (basicHomes.Contains(locationName))
             {
-                // For bedrooms and personal spaces, check friendship levels
-                switch (locationName)
+                return true;
+            }
+            
+            // Personal rooms require friendship checks
+            string[] personalRooms = new[] { 
+                "MaruRoom", "ElliottHouse", "HarveyRoom", "LeahHouse", 
+                "ShantyRoom", "WizardHouse", "WizardHouseBasement" 
+            };
+            
+            if (personalRooms.Contains(locationName) && Config.RequireFriendshipForHomes)
+            {
+                string npcName = GetNpcForLocation(locationName);
+                if (!string.IsNullOrEmpty(npcName) && Game1.player.getFriendshipHeartLevelForNPC(npcName) < 2)
                 {
-                    case "HaleyHouse":
-                    case "SamHouse":
-                    case "JoshHouse":
-                    case "ScienceHouse": // Robin's house
-                    case "SebastianRoom": // Special case for Sebastian's room
-                        // Basic access to houses generally allowed
-                        return true;
-                        
-                    // Special rooms that might need friendship
-                    case "MaruRoom":
-                    case "ElliottHouse":
-                    case "HarveyRoom":
-                    case "LeahHouse":
-                    case "ShantyRoom": // Willy's back room
-                    case "WizardHouse":
-                    case "WizardHouseBasement":
-                        // For these personal spaces, can optionally require higher friendship
-                        if (Config.RequireFriendshipForHomes)
-                        {
-                            string npcName = GetNpcForLocation(locationName);
-                            if (!string.IsNullOrEmpty(npcName) && Game1.player.getFriendshipHeartLevelForNPC(npcName) < 2)
-                            {
-                                return false;
-                            }
-                        }
-                        return true;
-                        
-                    default:
-                        return true; // Most locations don't require friendship
+                    return false;
                 }
             }
-            catch (Exception ex)
-            {
-                Monitor.Log($"Error checking friendship access for {locationName}: {ex.Message}", LogLevel.Error);
-                return true; // Default to allowing access if there's an error
-            }
+            
+            // Default is accessible
+            return true;
         }
         
         /// <summary>

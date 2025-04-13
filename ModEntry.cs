@@ -26,7 +26,7 @@ namespace WarpMod
         {
             // Read config and initialize
             this.config = helper.ReadConfig<ModConfig>();
-            this.mapWarpEnabled = this.config.MapWarpEnabled;
+            this.mapWarpEnabled = this.config.EnableWarping;
             
             // Initialize the map renderer
             this.mapRenderer = new MapRenderer(this.Monitor, helper);
@@ -62,7 +62,7 @@ namespace WarpMod
                 return;
                 
             // Check if warp key is pressed (using config binding)
-            if (this.config.WarpKey.JustPressed() && (this.config.AllowHotkeyWithoutItem || MagicAtlasItem.HasBeenRead()))
+            if (this.config.WarpKey.JustPressed() && (this.config.AllowWarpingWithoutItem || MagicAtlasItem.HasBeenRead()))
             {
                 // Open our custom menu
                 Game1.activeClickableMenu = new GridWarpMenu(this.Helper, this.Monitor, this.config);
@@ -106,7 +106,7 @@ namespace WarpMod
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
             // Refresh settings when save is loaded
-            this.mapWarpEnabled = this.config.MapWarpEnabled;
+            this.mapWarpEnabled = this.config.EnableWarping;
             
             // Initialize the fountain handler after save is loaded
             this.fountainHandler = new FountainHandler(this.Helper, this.Monitor, this.config);
@@ -198,11 +198,8 @@ namespace WarpMod
                 mod: this.ModManifest,
                 name: () => "Enable Grid Warp",
                 tooltip: () => "Whether to enable warping using the grid menu.",
-                getValue: () => this.config.MapWarpEnabled,
-                setValue: value => {
-                    this.config.MapWarpEnabled = value;
-                    this.mapWarpEnabled = value;
-                }
+                getValue: () => this.config.EnableWarping,  // Updated from MapWarpEnabled
+                setValue: value => this.config.EnableWarping = value  // Updated from MapWarpEnabled
             );
             
             // Make this option more clear and move it higher in the settings
@@ -210,8 +207,8 @@ namespace WarpMod
                 mod: this.ModManifest,
                 name: () => "Use Atlas Without Item (K Key)",
                 tooltip: () => "If enabled, allows opening the atlas menu by pressing the Warp Key (K) without having the Magic Atlas in inventory. If disabled, you must find the Magic Atlas item at the town fountain.",
-                getValue: () => this.config.AllowHotkeyWithoutItem,
-                setValue: value => this.config.AllowHotkeyWithoutItem = value
+                getValue: () => this.config.AllowWarpingWithoutItem,
+                setValue: value => this.config.AllowWarpingWithoutItem = value
             );
             
             // Add keybind option

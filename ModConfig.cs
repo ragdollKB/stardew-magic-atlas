@@ -4,20 +4,19 @@ using StardewModdingAPI.Utilities; // Add missing using for KeybindList
 namespace WarpMod
 {
     /// <summary>
-    /// Configuration settings for the Warp Mod
+    /// Configuration settings for the Magic Atlas mod
     /// </summary>
     public class ModConfig
     {
         /// <summary>
         /// Keybind to open the warp menu
         /// </summary>
-        // Rename OpenMenuKey to WarpKey for consistency with ModEntry
-        public KeybindList WarpKey { get; set; } = KeybindList.Parse("M"); // Default key: M (Matches GMCM setup)
+        public KeybindList WarpKey { get; set; } = KeybindList.Parse("M");
 
         /// <summary>
-        /// Whether the main warp functionality is enabled.
+        /// Whether the warping functionality is enabled
         /// </summary>
-        public bool MapWarpEnabled { get; set; } = true; // Add missing property used in ModEntry
+        public bool EnableWarping { get; set; } = true;
 
         /// <summary>
         /// Whether the Magic Atlas item is enabled
@@ -27,8 +26,8 @@ namespace WarpMod
         /// <summary>
         /// Whether to allow using the warp key without having the Magic Atlas item
         /// </summary>
-        public bool AllowHotkeyWithoutItem { get; set; } = false; // Default to false to enforce using the item
-
+        public bool AllowWarpingWithoutItem { get; set; } = false;
+        
         /// <summary>
         /// Whether to show locations from Stardew Valley Expanded (SVE)
         /// </summary>
