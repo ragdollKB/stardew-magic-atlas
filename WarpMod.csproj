@@ -6,6 +6,8 @@
     <TargetFramework>net6.0</TargetFramework>
     <EnableHarmony>false</EnableHarmony>
     <LangVersion>latest</LangVersion>
+    <!-- Disable automatic assembly info generation to prevent duplicates -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <EnableModDeploy Condition="'$(DisableModDeploy)' == 'true'">false</EnableModDeploy>
     <ModFolderName>MagicAtlas</ModFolderName>
   </PropertyGroup>
@@ -13,4 +15,15 @@
   <ItemGroup>
     <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.1.1" />
   </ItemGroup>
+
+  <!-- Exclude test directories from compilation -->
+  <ItemGroup>
+    <Compile Remove="WarpMod.Tests\**\*.cs" />
+    <Compile Remove="WarpMod.Tests.New\**\*.cs" />
+    <Compile Remove="WarpModTests\**\*.cs" />
+    <None Include="WarpMod.Tests\**\*.cs" />
+    <None Include="WarpMod.Tests.New\**\*.cs" />
+    <None Include="WarpModTests\**\*.cs" />
+  </ItemGroup>
+
 </Project>
