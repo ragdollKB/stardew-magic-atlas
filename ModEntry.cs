@@ -42,7 +42,9 @@ namespace WarpMod
             helper.Events.Display.WindowResized += this.OnWindowResized;
             helper.Events.GameLoop.DayStarted += this.OnDayStarted;
             helper.Events.GameLoop.DayEnding += this.OnDayEnding;
-            
+            // Add handler for item usage
+            helper.Events.Player.InventoryChanged += this.OnInventoryChanged;
+            helper.Events.Input.ButtonReleased += this.OnButtonReleased;
             // Register the Magic Atlas item for serialization (so it loads properly)
             helper.ConsoleCommands.Add("give_atlas", "Gives you the Magic Atlas item for testing.", this.GiveAtlasCommand);
 
@@ -78,22 +80,25 @@ namespace WarpMod
                 this.Monitor.Log("You need to load a save first!", LogLevel.Error);
                 return;
             }
-            
             // Check if player already has an atlas to prevent duplicates
-            bool alreadyHasAtlas = Game1.player.Items.Any(item => item is MagicAtlasItem);
+            bool alreadyHasAtlas = Game1.player.Items.Any(item =>
+                item is StardewValley.Object obj &&
+                obj.modData != null &&
+                obj.modData.ContainsKey("ragdollkb.magicatlas")
+            );
             if (alreadyHasAtlas)
             {
                 this.Monitor.Log("Player already has a Magic Atlas!", LogLevel.Info);
                 return;
             }
-            
-            var atlas = new MagicAtlasItem();
-            
+            var atlas = new StardewValley.Object("68", 1);
+            atlas.modData["ragdollkb.magicatlas"] = "true";
+            atlas.Name = "Magic Atlas";
+            atlas.SpecialVariable = 1;
             if (Game1.player.addItemToInventory(atlas) != null)
             {
                 Game1.createItemDebris(atlas, Game1.player.Position, -1);
             }
-            
             this.Monitor.Log("Magic Atlas added to inventory!", LogLevel.Info);
         }
 
@@ -268,6 +273,35 @@ namespace WarpMod
             );
 
             this.Monitor.Log("GMCM integration completed", LogLevel.Info);
+        }
+
+        // Track the last item slot used for right-click
+        private int? lastRightClickSlot = null;
+
+        // Listen for right-click to track which slot was used
+        private void OnButtonReleased(object sender, ButtonReleasedEventArgs e)
+        {
+            if (!Context.IsWorldReady || Game1.activeClickableMenu != null)
+                return;
+            if (e.Button.IsUseToolButton())
+            {
+                int slot = Game1.player.CurrentToolIndex;
+                lastRightClickSlot = slot;
+            }
+        }
+
+        // Listen for inventory changes to detect item usage
+        private void OnInventoryChanged(object sender, InventoryChangedEventArgs e)
+        {
+            if (!Context.IsWorldReady || Game1.activeClickableMenu != null)
+                return;
+            // Check if the player is holding the Magic Atlas and just used it
+            var heldItem = Game1.player.CurrentItem as StardewValley.Object;
+            if (heldItem != null && heldItem.modData != null && heldItem.modData.ContainsKey("ragdollkb.magicatlas"))
+            {
+                // Open the warp menu
+                Game1.activeClickableMenu = new GridWarpMenu(this.Helper, this.Monitor, this.config);
+            }
         }
     }
 }

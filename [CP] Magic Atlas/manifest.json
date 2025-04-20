@@ -1,0 +1,12 @@
+{
+  "Name": "Magic Atlas Content Pack",
+  "Author": "kanto",
+  "Version": "1.0.0",
+  "Description": "Adds the Magic Atlas item and assets.",
+  "UniqueID": "kanto.MagicAtlasCP",
+  "MinimumApiVersion": "3.0.0",
+  "UpdateKeys": [],
+  "ContentPackFor": {
+    "UniqueID": "Pathoschild.ContentPatcher"
+  }
+}

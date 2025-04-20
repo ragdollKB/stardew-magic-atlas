@@ -288,11 +288,15 @@ namespace WarpMod
         /// </summary>
         private void GiveAtlasToPlayer()
         {
-            // Create the atlas item
-            var atlas = new MagicAtlasItem();
-            
-            Monitor.Log("Giving Magic Atlas to player", LogLevel.Info);
-            
+            // Correct way to create the custom Magic Atlas item
+            var atlas = ItemRegistry.Create("(O)ragdollkb.MagicAtlas", 1, quality: 0, allowNull: true);
+            if (atlas == null || atlas.QualifiedItemId.Contains("Error"))
+            {
+                Monitor.Log("ERROR: Magic Atlas item could not be created. Check Data/Objects and Content Patcher pack.", LogLevel.Error);
+                Game1.addHUDMessage(new HUDMessage("Magic Atlas item not found! Check mod setup.", HUDMessage.error_type));
+                return;
+            }
+            Monitor.Log($"Giving Magic Atlas to player: {atlas.QualifiedItemId}", LogLevel.Info);
             // Start the atlas at the fountain location instead of player position
             Vector2 fountainPosition = new Vector2(ATLAS_TILE_X * Game1.tileSize, ATLAS_TILE_Y * Game1.tileSize);
             Vector2 dropPosition = fountainPosition;
@@ -301,10 +305,8 @@ namespace WarpMod
             if (Game1.currentLocation.isCollidingPosition(new Rectangle((int)dropPosition.X, (int)dropPosition.Y, 64, 64), Game1.viewport, isFarmer: false, 0, false, Game1.player))
             {
                 Monitor.Log("Fountain position is not directly reachable. Finding nearby position.", LogLevel.Info);
-                
-                // First try positions very close to the fountain (1-2 tiles)
                 bool foundNearbyPosition = false;
-                for (int i = 1; i <= 2; i++) // Search within a small radius first
+                for (int i = 1; i <= 2; i++)
                 {
                     foreach (Vector2 tile in StardewValley.Utility.getSurroundingTileLocationsArray(new Vector2(ATLAS_TILE_X, ATLAS_TILE_Y)))
                     {
@@ -316,17 +318,13 @@ namespace WarpMod
                             break;
                         }
                     }
-                    
                     if (foundNearbyPosition)
                         break;
                 }
-                
-                // If nearby positions don't work, try positions near the player as fallback
                 if (!foundNearbyPosition)
                 {
                     dropPosition = Game1.player.Position;
-                    
-                    for (int i = 1; i <= 3; i++) // Limited search near player
+                    for (int i = 1; i <= 3; i++)
                     {
                         foreach (Vector2 tile in StardewValley.Utility.getSurroundingTileLocationsArray(new Vector2((int)(dropPosition.X / Game1.tileSize), (int)(dropPosition.Y / Game1.tileSize))))
                         {
@@ -338,7 +336,6 @@ namespace WarpMod
                                 break;
                             }
                         }
-                        
                         if (foundNearbyPosition)
                             break;
                     }
@@ -372,7 +369,6 @@ namespace WarpMod
             );
             // Play reward sound
             Game1.playSound("reward");
-            
             // Mark as received
             Game1.player.mailReceived.Add(ATLAS_FLAG);
         }
@@ -382,7 +378,7 @@ namespace WarpMod
         /// </summary>
         private bool PlayerHasAtlasItem()
         {
-            return Game1.player.Items.Any(item => item is MagicAtlasItem);
+            return Game1.player.Items.Any(item => item != null && item.QualifiedItemId == "(O)ragdollkb.MagicAtlas");
         }
     }
 }

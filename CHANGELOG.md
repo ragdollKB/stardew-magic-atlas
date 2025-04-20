@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
-- Fixed property name mismatch in ModEntry.cs (updated references from `AllowHotkeyWithoutItem` to `AllowWarpingWithoutItem`)
+## [Unreleased]
+### Fixed
+- Magic Atlas is now spawned and checked using the new ItemRegistry system and Data/Objects, ensuring correct sprite, name, and description. No more Topaz or error items. Right-click and menu logic will now work as intended.
 
 All notable changes to this project will be documented in this file.
 
@@ -25,22 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed bug where the Magic Atlas would disappear from inventory and spawn a yellow stone object after use
 - Improved atlas instruction text to be clearer
 
-## [0.4.2] - 2025-04-12
-
-### Changed
-- Improved Atlas item by using properly sized 64x64 sprite
-- Removed "Magic Atlas" title from the Atlas interface when a location is selected
-- Added visual improvement showing an open atlas image when no location is selected
-
-## [0.4.1] - 2025-04-12
-
+## [0.4.2] - 2025-04-20
 ### Fixed
-- Fixed error in FountainHandler where `isTileLocationTotallyClearAndPlaceable` method didn't exist by using the correct collision detection method
-- Improved item spawning code to better handle collisions and find valid placement locations
-- Fixed Magic Atlas item appearing as "Large Egg" in inventory by using correct item ID and custom sprite
-- Implemented proper custom sprite rendering for the Magic Atlas when held, in inventory, and in world
-- Fixed drawWhenHeld method to properly position the item when player is holding it
-- Improved the Atlas spawning animation from the fountain to make it more visible
+- Resolved game save error where the `MagicAtlasItem` type was not recognized by the XML serializer by adding `XmlInclude` and `XmlType` attributes.
+
+## [0.4.1] - 2025-04-20
+### Fixed
+- Resolved game save error caused by the Magic Atlas item missing a parameterless constructor required for serialization.
 
 ## [0.4.0] - 2025-04-20
 ### Fixed

@@ -6,6 +6,7 @@ using StardewValley.Objects;
 using StardewValley.Menus;
 using System;
 using System.Linq;
+using System.Xml.Serialization; // Add this using statement
 using WarpMod.Utility;
 
 namespace WarpMod
@@ -13,6 +14,8 @@ namespace WarpMod
     /// <summary>
     /// Magic Atlas item that allows warping to discovered locations
     /// </summary>
+    [XmlInclude(typeof(MagicAtlasItem))] // Include this type for serialization
+    [XmlType("Mods_WarpMod_MagicAtlasItem")] // Define a unique XML type name
     public class MagicAtlasItem : StardewValley.Object
     {
         // Static references to mod helper and monitor for logging
@@ -78,7 +81,15 @@ namespace WarpMod
         }
 
         /// <summary>
-        /// Default constructor - required for item serialization
+        /// Parameterless constructor required for XML serialization.
+        /// </summary>
+        public MagicAtlasItem() : this(null) 
+        {
+            // Initialization logic handled by the main constructor called via : this(null)
+        }
+
+        /// <summary>
+        /// Main constructor for the Magic Atlas item.
         /// </summary>
         public MagicAtlasItem(ModConfig config = null)
             : base("68", 1) // Using Lost Book ID (68) as base which is more thematically appropriate
