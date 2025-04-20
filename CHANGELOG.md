@@ -1,6 +1,7 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.0] - 2025-04-20
+
 ### Fixed
 - Magic Atlas is now spawned and checked using the new ItemRegistry system and Data/Objects, ensuring correct sprite, name, and description. No more Topaz or error items. Right-click and menu logic will now work as intended.
 
