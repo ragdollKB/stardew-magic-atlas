@@ -2,11 +2,24 @@
 <html>
     <head>
         <title>Stardew coordinate finder</title>
-        <script src="index.js"></script>
         <link href="index.css" rel="stylesheet">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
     <body>
-        <h1>Stardew coordinate finder</h1>
+        <h1>Stardew Valley Coordinate Finder</h1>
+        <p>This tool helps you find exact coordinates in Stardew Valley maps. Hover over any map to see the X,Y tile coordinates.</p>
+        
+        <div id="dropzone">
+            Drop a spots.json file here to highlight specific coordinates
+        </div>
+        
+        <div id="map-navigation">
+            <h3>Map Navigation</h3>
+            <div id="map-links"></div>
+        </div>
+        
         <div id="tooltip">(x,y)</div>
+        
+        <script src="index.js"></script>
     </body>
 </html>

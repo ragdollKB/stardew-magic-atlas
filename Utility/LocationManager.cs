@@ -1,52 +1,55 @@
 using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewValley;
+using StardewValley.Locations;
+using StardewValley.Objects; // Add using for Furniture class
+using StardewValley.TerrainFeatures;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace WarpMod.Utility
 {
     /// <summary>
-    /// Manages location data, categorization, and filtering for the warp menu
+    /// Manages location data and categorization for the warp menu
     /// </summary>
     public class LocationManager
     {
         private readonly IMonitor Monitor;
+        private readonly ModConfig Config; // Add config field
         private readonly Dictionary<string, List<string>> locationTabs = new();
         private readonly HashSet<string> blacklistedLocations = new();
+        private readonly Dictionary<string, Point> ValidWarpPositionCache = new Dictionary<string, Point>();
         
-        // Add a new mod locations category
-        private const string MOD_LOCATIONS_CATEGORY = "Mod Locations";
-        
-        // Flag to control whether to show SVE locations
-        private readonly bool showSVELocations;
+        // The mod locations category name - Make public so GridWarpMenu can access it for sorting
+        public const string MOD_LOCATIONS_CATEGORY = "Mod Locations";
+        private const int MaxLocationsPerTab = 9; // Define the fixed limit
 
-        public LocationManager(IMonitor monitor, bool showSVELocations = true)
+        public LocationManager(IMonitor monitor, ModConfig config)
         {
             this.Monitor = monitor;
-            this.showSVELocations = showSVELocations;
+            this.Config = config; // Store config
             InitializeCategories();
-            InitializeBlacklist(); // Add blacklist initialization
+            InitializeBlacklist();
             LoadLocations();
         }
 
         /// <summary>
-        /// Initialize empty category lists
+        /// Initialize empty base category lists
         /// </summary>
         private void InitializeCategories()
         {
-            // Initialize categories based on wiki structure
-            locationTabs["Town"] = new List<string>();
+            // Only initialize base categories here, numbered tabs are created dynamically
             locationTabs["Farm"] = new List<string>();
+            locationTabs["Town"] = new List<string>();
             locationTabs["Beach"] = new List<string>();
             locationTabs["Mountain"] = new List<string>();
             locationTabs["Forest"] = new List<string>();
             locationTabs["Desert"] = new List<string>();
             locationTabs["Island"] = new List<string>();
-            locationTabs["Indoor"] = new List<string>(); // For miscellaneous indoor locations
-            locationTabs[MOD_LOCATIONS_CATEGORY] = new List<string>(); // For modded locations
+            
+            // Mod category is handled dynamically if needed/enabled
         }
         
         /// <summary>
@@ -54,37 +57,14 @@ namespace WarpMod.Utility
         /// </summary>
         private void InitializeBlacklist()
         {
-            // Add locations that should be excluded (temporary maps, unaccessible areas, etc.)
+            // Add locations that should be excluded
             string[] excludedMaps = new[]
             {
-                "Backwoods", // Not a valid warp destination
-                "Temp", // Temporary maps
-                "Cutscene", // Cutscene maps
-                "Credits", // Credits scene
-                "Intro", // Intro scene
-                "Mine", // Mines are handled specially (except Mine entrance)
-                "UndergroundMine", // Mining levels (except level 120)
-                "VolcanoDungeon", // Volcano levels (except entrance)
-                "Submarine", // Special event location
-                "Trailer_Big_Temp", // Temporary trailer map
-                "BoatTunnel", // Special boat tunnel area
-                "FishShopCutscene", // Cutscene location
-                "Sewer_Temp", // Temporary sewer map
-                "Temp_", // Any temp location
-                "_Ambient", // Ambient maps
-                "ElevatorShaft", // Elevator shaft
-                "fishingGame", // Fishing mini-game
-                "festivalSpot", // Festival spot
-                "LeoTreeHouse", // Leo's tree house (special access)
-                "Pool", // Generic pool map
-                "MermaidHouse", // Mermaid house (special access)
-                "AbandonedBuilding", // Abandoned building (not meant for warping)
-                "QiCave", // Qi's cave (special access)
-                "CaptainRoom", // Captain's room
-                "RailroadTemporary", // Temporary railroad map
-                "event", // Event maps
-                "_Savage", // Savage maps
-                "Tutorial" // Tutorial maps
+                "Backwoods", "Temp", "Cutscene", "Credits", "Intro", "Mine", // Keep existing
+                "UndergroundMine", "VolcanoDungeon", "Submarine", "BoatTunnel", 
+                "Temp_", "_Ambient", "fishingGame", "festivalSpot",
+                "DesertFestival" // Add DesertFestival
+                // Add other temporary or unusable locations if needed
             };
             
             foreach (var map in excludedMaps)
@@ -94,135 +74,213 @@ namespace WarpMod.Utility
         }
 
         /// <summary>
-        /// Load all available locations from the game and mods
+        /// Load all available locations from the game and mods, splitting categories if they exceed the limit.
         /// </summary>
         private void LoadLocations()
         {
-            // Track how many vanilla and modded locations we load
-            int vanillaLocationsCount = 0;
-            int moddedLocationsCount = 0;
+            locationTabs.Clear(); // Clear existing tabs before loading
+            InitializeCategories(); // Initialize base categories
 
-            // Load locations directly from the game's location list
-            foreach (var location in Game1.locations)
+            // Get all valid locations first, applying filters and initial sorting
+            var allLocations = Game1.locations
+                .Where(loc => loc != null && !string.IsNullOrEmpty(loc.Name) && loc.map != null)
+                .Where(loc => !IsBlacklisted(loc.Name))
+                .Where(loc => !Config.HideLockedLocations || IsLocationAccessible(loc.Name)) // Use full accessibility check
+                // Apply the new filter based on config
+                .Where(loc => Config.ShowIndoorAndSpecialLocations || IsMajorOutdoorLocation(loc.Name))
+                .OrderBy(loc => GetDisplayName(loc.Name)) // Sort alphabetically by display name
+                .ToList();
+
+            // Temporary dictionary to hold locations before splitting
+            var tempCategorizedLocations = new Dictionary<string, List<string>>();
+
+            // Initial categorization pass
+            foreach (var location in allLocations)
             {
-                // Skip null locations and those without a name or map
-                if (location == null || string.IsNullOrEmpty(location.Name) || location.map == null)
-                    continue;
-                    
-                // Skip blacklisted locations
-                if (IsBlacklisted(location.Name))
-                    continue;
-                    
-                // Skip inaccessible locations
-                if (!IsLocationAccessible(location))
-                    continue;
-                    
-                // Categorize the location
-                string category = DetermineMapCategory(location.Name);
-                
-                // Track if this is a modded location
+                string baseCategory = DetermineMapCategory(location.Name);
                 bool isModded = IsModdedLocation(location.Name);
-                if (isModded)
+
+                // Determine the final base category (considering mod grouping)
+                if (isModded && Config.GroupModdedLocations && Config.ShowSVELocations)
                 {
-                    moddedLocationsCount++;
-                    // For modded locations, add to the mod locations category
-                    if (!locationTabs[MOD_LOCATIONS_CATEGORY].Contains(location.Name))
-                    {
-                        locationTabs[MOD_LOCATIONS_CATEGORY].Add(location.Name);
-                    }
+                    baseCategory = MOD_LOCATIONS_CATEGORY;
                 }
-                else
+                else if (isModded && !Config.ShowSVELocations)
                 {
-                    vanillaLocationsCount++;
+                    continue; // Skip modded locations if SVE locations are disabled
                 }
-                
-                // Also add to the standard category if it's not already present
-                if (!locationTabs[category].Contains(location.Name) && !isModded)
+                // If modded but not grouping, it stays in its determined category
+
+                // Add to temporary category list
+                if (!tempCategorizedLocations.ContainsKey(baseCategory))
                 {
-                    locationTabs[category].Add(location.Name);
+                    tempCategorizedLocations[baseCategory] = new List<string>();
+                }
+                if (!tempCategorizedLocations[baseCategory].Contains(location.Name))
+                {
+                     tempCategorizedLocations[baseCategory].Add(location.Name);
                 }
             }
 
-            // Add special handling for SVE locations if installed
-            AddSVELocationsIfAvailable();
+            // Now, distribute locations into final tabs, splitting as needed
+            locationTabs.Clear(); // Clear again to populate with final, potentially split tabs
+            foreach (var kvp in tempCategorizedLocations.OrderBy(kv => kv.Key)) // Process categories alphabetically
+            {
+                string baseCategory = kvp.Key;
+                List<string> locationsInCategory = kvp.Value;
+                int tabIndex = 1;
+                int locationIndex = 0;
 
-            // Sort locations within each category
+                while (locationIndex < locationsInCategory.Count)
+                {
+                    string currentTabName = (tabIndex == 1) ? baseCategory : $"{baseCategory} {tabIndex}";
+                    
+                    // Ensure the tab exists in the final dictionary
+                    if (!locationTabs.ContainsKey(currentTabName))
+                    {
+                        locationTabs[currentTabName] = new List<string>();
+                    }
+
+                    // Add locations to the current tab up to the limit
+                    int addedCount = 0;
+                    while (addedCount < MaxLocationsPerTab && locationIndex < locationsInCategory.Count)
+                    {
+                        locationTabs[currentTabName].Add(locationsInCategory[locationIndex]);
+                        locationIndex++;
+                        addedCount++;
+                    }
+                    
+                    tabIndex++; // Move to the next potential tab number
+                }
+            }
+
+             // Apply specific sorting overrides (like Farm first) AFTER splitting
+             ApplySortingOverrides();
+
+            // Remove empty categories that might have been initialized but not used (shouldn't happen with new logic, but safe)
             foreach (var category in locationTabs.Keys.ToList())
             {
-                locationTabs[category].Sort();
-            }
-
-            // Log the count of locations in each category
-            foreach (var category in locationTabs.Keys)
-            {
-                if (locationTabs[category].Count > 0)
+                if (locationTabs[category].Count == 0)
                 {
-                    Monitor.Log($"Loaded {locationTabs[category].Count} locations in category: {category}", LogLevel.Debug);
+                    locationTabs.Remove(category);
                 }
             }
-            
-            Monitor.Log($"Loaded a total of {vanillaLocationsCount} vanilla locations and {moddedLocationsCount} modded locations", LogLevel.Info);
         }
-        
-        /// <summary>
-        /// Add Stardew Valley Expanded locations if the mod is installed
-        /// </summary>
-        private void AddSVELocationsIfAvailable()
+
+        /// <summary>Checks if a location is one of the major outdoor areas.</summary>
+        private bool IsMajorOutdoorLocation(string locationName)
         {
-            // Skip if SVE locations are disabled in config
-            if (!showSVELocations)
-            {
-                Monitor.Log("SVE location support is disabled in config", LogLevel.Debug);
-                return;
-            }
-            
-            // Check if SVE locations exist by looking for common SVE locations
-            bool sveInstalled = Game1.getLocationFromName("Custom_Backwoods") != null || 
-                               Game1.getLocationFromName("Custom_GramplesHouse") != null ||
-                               Game1.getLocationFromName("Custom_ForestWest") != null;
-            
-            if (!sveInstalled)
-                return;
-                
-            Monitor.Log("Stardew Valley Expanded detected, adding special handling for SVE locations", LogLevel.Info);
-            
-            // Add some key SVE locations that might not be in the loaded locations list
-            string[] sveLocations = new[] {
-                "Custom_Backwoods", 
-                "Custom_ForestWest",
-                "Custom_GramplesHouse",
-                "Custom_AdventureGuild",
-                "Custom_FairhavenFarm",
-                "Custom_SophiaFarm",
-                "Custom_BlueMoonVineyard",
-                "Custom_MorrisJoja",
-                "Custom_JenkinsHouse",
-                "Custom_SusanHouse",
-                "Custom_AndyHouse",
-                "Custom_MartinHouse",
-                "Custom_VictorHouse",
-                "Custom_OliviaBedroom",
-                "Custom_ClaireRoom",
-                "Custom_MorrisApartment",
-                "Custom_AuroraVineyard",
-                "Custom_IridiumQuarry",
-                "Custom_AdventurerCabin",
-                "Custom_TreasureCave"
+            // Define the core outdoor locations
+            string[] majorOutdoor = { 
+                "Farm", "Town", "Beach", "Mountain", "Forest", "Desert", "BusStop", "Railroad"
+                // Add Island locations if desired as core outdoor areas
+                // "IslandSouth", "IslandWest", "IslandNorth", "IslandEast"
             };
             
-            foreach (var locationName in sveLocations)
+            // Check if the location name matches or starts with one of the major areas
+            // (StartsWith helps catch variations like FarmHouse, FarmCave if needed, though categorization might handle this)
+            // For simplicity, let's do an exact match for the main areas.
+            return majorOutdoor.Contains(locationName, StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>Applies specific sorting overrides like putting "Farm" first.</summary>
+         private void ApplySortingOverrides()
+         {
+             // Example: Ensure "Farm" is first in the "Farm" category (the first tab)
+             if (locationTabs.TryGetValue("Farm", out var farmList) && farmList.Contains("Farm"))
+             {
+                 farmList.Remove("Farm");
+                 farmList.Insert(0, "Farm");
+             }
+              // Example: Ensure "Forest" is first in the "Forest" category (the first tab)
+             if (locationTabs.TryGetValue("Forest", out var forestList) && forestList.Contains("Forest"))
+             {
+                 forestList.Remove("Forest");
+                 forestList.Insert(0, "Forest");
+             }
+             // Add other overrides if needed (e.g., FarmHouse second in Farm)
+         }
+
+        /// <summary>Checks if the player has unlocked access to a given location.</summary>
+        private bool IsLocationUnlocked(string locationName)
+        {
+            // Always allow Farm and Town basics if not hidden
+            if (locationName == "Farm" || locationName == "FarmHouse" || locationName == "Town")
+                return true;
+
+            // Check specific unlock conditions
+            switch (locationName)
             {
-                var location = Game1.getLocationFromName(locationName);
-                if (location != null && location.map != null && !IsBlacklisted(locationName))
-                {
-                    // Add to mod locations category if not already present
-                    if (!locationTabs[MOD_LOCATIONS_CATEGORY].Contains(locationName))
-                    {
-                        locationTabs[MOD_LOCATIONS_CATEGORY].Add(locationName);
-                        Monitor.Log($"Added SVE location: {locationName}", LogLevel.Debug);
-                    }
-                }
+                case "Desert":
+                    return Game1.isLocationAccessible("Desert"); // Bus repair
+                case "SkullCave": // Requires Skull Key (in addition to Desert access)
+                    return Game1.isLocationAccessible("Desert") && Game1.player.hasSkullKey;
+                case "Club": // Casino - Requires Club Card (in addition to Desert access)
+                     return Game1.isLocationAccessible("Desert") && Game1.player.hasClubCard;
+                case "IslandSouth":
+                    return Game1.isLocationAccessible("IslandSouth"); // Boat repair
+                case "IslandWest":
+                    return Game1.isLocationAccessible("IslandWest"); // Boat repair
+                case "IslandNorth":
+                case "IslandEast":
+                case "IslandFarmhouse":
+                case "Caldera":
+                case "VolcanoDungeon0":
+                    return Game1.isLocationAccessible("IslandSouth"); // Boat repair
+                case "Woods": // Secret Woods
+                    return Game1.player.toolBeingUpgraded.Value == null && Game1.player.getToolFromName("Axe")?.UpgradeLevel >= 2;
+                case "Sewer":
+                    return Game1.player.hasRustyKey;
+                case "BugLand": // Mutant Bug Lair
+                    return Game1.player.hasDarkTalisman;
+                case "WitchSwamp": // Accessed via Railroad
+                    return Game1.player.hasMagicInk;
+                case "Railroad": // Event triggers Summer 3, Year 1
+                    return Game1.Date.TotalDays >= (1 * 28 + 3 + 28); 
+                case "CommunityCenter":
+                    return true; 
+                case "MovieTheater":
+                    return (Game1.MasterPlayer.mailReceived.Contains("ccIsComplete") || Game1.MasterPlayer.mailReceived.Contains("JojaMember")) && Game1.isLocationAccessible("MovieTheater");
+                
+                // ADDED/UPDATED CHECKS:
+                case "Summit": // Requires Perfection & event seen
+                    return StardewValley.Utility.percentGameComplete() >= 1.0 && Game1.player.eventsSeen.Contains("79160001");
+                case "Sunroom": // Caroline's Sunroom
+                    return Game1.player.getFriendshipHeartLevelForNPC("Caroline") >= 2;
+                case "WitchHut": // Requires Dark Talisman quest completion (Goblin Problem)
+                    return Game1.player.mailReceived.Contains("witchStatueGone");
+                case "Trailer_Big": // Pam's upgraded trailer
+                    return Game1.player.mailReceived.Contains("pamHouseUpgrade");
+
+                // Most standard houses/shops are accessible by default if shown (no specific unlock needed beyond game access)
+                case "HaleyHouse":
+                case "SamHouse":
+                case "JoshHouse":
+                case "ScienceHouse":
+                case "ElliottHouse":
+                case "LeahHouse":
+                case "Trailer": // Pam's initial trailer
+                case "Tent": // Linus' tent
+                case "SeedShop":
+                case "Saloon":
+                case "Blacksmith":
+                case "Hospital":
+                case "AnimalShop":
+                case "FishShop":
+                case "ArchaeologyHouse": // Museum
+                case "AdventureGuild":
+                case "BathHouse_Entry":
+                case "WizardHouse": // Base wizard house access
+                    return true;
+
+                // Add more checks for specific mod locations if needed
             }
+
+            // Default to accessible ONLY if indoor locations are shown AND no specific condition failed above.
+            // If HideLockedLocations is true, this default won't matter due to the filter in LoadLocations.
+            // If HideLockedLocations is false, this allows unlisted indoor locations to show up.
+            // Consider changing this default to 'false' if you want *only* explicitly checked locations to appear.
+            return true; 
         }
         
         /// <summary>
@@ -241,73 +299,196 @@ namespace WarpMod.Utility
         }
         
         /// <summary>
-        /// Check if a location is from a mod
+        /// Checks if a location is currently accessible for the player considering all factors
         /// </summary>
-        private bool IsModdedLocation(string locationName)
+        /// <param name="locationName">The name of the location to check</param>
+        /// <returns>True if the player can access the location, false otherwise</returns>
+        public bool IsLocationAccessible(string locationName)
         {
-            // Check for common mod location prefixes/patterns
-            string[] modLocationPatterns = {
-                "Custom_", "SVE_", "DIGUS.", "JA_", "CP_", 
-                "Summit", "GingerIsland", "Ridgeside", "East Scarp", 
-                "Zuzu", "BackwoodsMod", "BusStopExtension"
-            };
-            
-            foreach (var pattern in modLocationPatterns)
+            // Skip blacklisted locations
+            if (IsBlacklisted(locationName))
+                return false;
+                
+            // Check if the player has unlocked this location through progression
+            if (!IsLocationUnlocked(locationName))
+                return false;
+                
+            // Check for event-related restrictions
+            if (IsLocationBlockedByEvent(locationName))
+                return false;
+                
+            // Check time-of-day and weather restrictions
+            if (!IsAccessibleInCurrentConditions(locationName))
+                return false;
+                
+            // Check friendship-based access
+            if (!HasSufficientFriendshipAccess(locationName))
+                return false;
+                
+            // If all checks pass, the location is accessible
+            return true;
+        }
+        
+        /// <summary>
+        /// Checks if a location is currently hosting a festival or other blocking event
+        /// </summary>
+        private bool IsLocationBlockedByEvent(string locationName)
+        {
+            try
             {
-                if (locationName.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                // Check for festivals
+                if (Game1.isFestival())
+                {
+                    // Can't warp to festival location unless already in the festival
+                    if (Game1.currentLocation.Name != locationName && locationName == Game1.currentLocation.Name)
+                    {
+                        return true;
+                    }
+                }
+                
+                // Check for wedding event
+                if (Game1.weddingToday && locationName == "Town" && Game1.timeOfDay < 1400)
                 {
                     return true;
                 }
+                
+                // Check for movies being played (if at the right time and day)
+                if (locationName == "MovieTheater" && Game1.Date.DayOfWeek != 0 && Game1.timeOfDay >= 1200)
+                {
+                    if (Game1.player.team.movieMutex.IsLocked())
+                    {
+                        // Movie already in session
+                        return true;
+                    }
+                }
+                
+                // Check for special cutscene locations
+                if (Game1.eventUp || Game1.farmEvent != null)
+                {
+                    // During events, restrict warping to event locations
+                    return true;
+                }
+                
+                return false;
             }
+            catch (Exception ex)
+            {
+                Monitor.Log($"Error checking event restrictions for {locationName}: {ex.Message}", LogLevel.Error);
+                return false; // Default to allowing access if there's an error
+            }
+        }
+        
+        /// <summary>
+        /// Checks if a location is accessible based on time of day and weather
+        /// </summary>
+        private bool IsAccessibleInCurrentConditions(string locationName)
+        {
+            // Time of day restrictions
+            bool isDaytime = Game1.timeOfDay >= 600 && Game1.timeOfDay < 2400;
             
-            // Check if this is a vanilla location (this approach is more future-proof)
-            string[] vanillaLocationPrefixes = {
-                "Beach", "BusStop", "Desert", "Farm", "Forest", "Mountain", "Town", 
-                "Mine", "Island", "Sewer", "WizardHouse", "Woods"
+            // Create a dictionary of location-specific conditions to simplify the logic
+            var specialConditions = new Dictionary<string, Func<bool>>
+            {
+                // Public buildings with specific hours
+                ["SeedShop"] = () => isDaytime && Game1.timeOfDay < 1700 && !Game1.isFestival() && (int)Game1.Date.DayOfWeek != 3,
+                ["Blacksmith"] = () => isDaytime && Game1.timeOfDay < 1600 && !Game1.isFestival() && (int)Game1.Date.DayOfWeek != 5,
+                ["ScienceHouse"] = () => isDaytime && Game1.timeOfDay < 1500 && !Game1.isFestival() && (int)Game1.Date.DayOfWeek != 3,
+                
+                // Weather dependent locations
+                ["Beach"] = () => !Game1.isLightning || Config.AllowDangerousLocations,
+                
+                // Dangerous locations
+                ["Mine"] = () => Config.AllowDangerousLocations || Game1.player.health > 30,
+                ["SkullCave"] = () => Config.AllowDangerousLocations || Game1.player.health > 50
             };
             
-            // If it matches a vanilla pattern, it's probably not modded
-            foreach (var pattern in vanillaLocationPrefixes) 
+            // Check if we have a special condition for this location
+            if (specialConditions.TryGetValue(locationName, out var condition))
             {
-                if (locationName.Equals(pattern, StringComparison.OrdinalIgnoreCase))
+                return condition();
+            }
+            
+            // Default is accessible
+            return true;
+        }
+        
+        /// <summary>
+        /// Checks if player has sufficient friendship to access certain locations
+        /// </summary>
+        private bool HasSufficientFriendshipAccess(string locationName)
+        {
+            // Basic homes are always accessible
+            string[] basicHomes = new[] { 
+                "HaleyHouse", "SamHouse", "JoshHouse", "ScienceHouse" 
+            };
+            
+            if (basicHomes.Contains(locationName))
+            {
+                return true;
+            }
+            
+            // Personal rooms require friendship checks
+            string[] personalRooms = new[] { 
+                "MaruRoom", "ElliottHouse", "HarveyRoom", "LeahHouse", 
+                "ShantyRoom", "WizardHouse", "WizardHouseBasement" 
+            };
+            
+            if (personalRooms.Contains(locationName) && Config.RequireFriendshipForHomes)
+            {
+                string npcName = GetNpcForLocation(locationName);
+                if (!string.IsNullOrEmpty(npcName) && Game1.player.getFriendshipHeartLevelForNPC(npcName) < 2)
                 {
                     return false;
                 }
             }
             
-            // If the name is very long or complex, it's likely a modded location
-            if (locationName.Length > 20 || locationName.Count(c => c == '_') > 1)
-            {
-                return true;
-            }
-            
-            // Default to false (assume vanilla)
-            return false;
+            // Default is accessible
+            return true;
         }
         
         /// <summary>
-        /// Check if a location is accessible for warping
+        /// Returns the NPC associated with a location for friendship checks
         /// </summary>
-        private bool IsLocationAccessible(GameLocation location)
+        private string GetNpcForLocation(string locationName)
         {
-            // Skip null locations and those without maps
-            if (location == null || location.map == null)
-                return false;
-                
-            // Skip temporary or special locations
-            if (location.Name.Contains("Temp") || 
-                location.Name.Contains("Trailer_") || // Skip trailer variations
-                (location.Name.StartsWith("UndergroundMine") && !location.Name.EndsWith("120")) || // Only allow mine level 120
-                location.Name.StartsWith("VolcanoDungeon"))
+            // Map locations to their primary NPC residents
+            var locationToNpc = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                return false;
+                { "ElliottHouse", "Elliott" },
+                { "HarveyRoom", "Harvey" },
+                { "SebastianRoom", "Sebastian" },
+                { "MaruRoom", "Maru" },
+                { "LeahHouse", "Leah" },
+                { "WizardHouse", "Wizard" },
+                { "WizardHouseBasement", "Wizard" }
+                // Add more as needed
+            };
+            
+            if (locationToNpc.TryGetValue(locationName, out string npcName))
+            {
+                return npcName;
             }
             
-            // Skip maps that require special conditions or are not meant to be warped to
-            if (location.IsOutdoors && location.map.Layers[0].LayerWidth < 5)
-                return false;
-                
-            return true;
+            return null;
+        }
+        
+        /// <summary>
+        /// Check if a location is from a mod
+        /// </summary>
+        private bool IsModdedLocation(string locationName)
+        {
+            // Check for common mod location prefixes
+            string[] modLocationPatterns = { "Custom_", "SVE_", "DIGUS." };
+            
+            foreach (var pattern in modLocationPatterns)
+            {
+                if (locationName.Contains(pattern))
+                {
+                    return true;
+                }
+            }
+            
+            return false;
         }
 
         /// <summary>
@@ -315,67 +496,44 @@ namespace WarpMod.Utility
         /// </summary>
         private string DetermineMapCategory(string mapName)
         {
-            // Town locations (https://stardewvalleywiki.com/Category:Town_Locations)
-            if (mapName == "Town" || mapName == "SeedShop" || mapName == "Saloon" ||
-                mapName == "ManorHouse" || mapName == "Blacksmith" || mapName == "Hospital" ||
-                mapName == "SamHouse" || mapName == "HaleyHouse" || mapName == "JojaMart" ||
-                mapName == "JoshHouse" || mapName == "Trailer" || mapName == "Trailer_Big" ||
-                mapName == "CommunityCenter" || mapName == "Theater" || mapName == "MovieTheater" ||
-                mapName == "AbandonedJojaMart" || mapName == "ArchaeologyHouse" || 
-                mapName == "HarveyRoom" || mapName == "HotelLobby" || mapName == "HotelRoom")
+            // Town locations
+            if (mapName.Contains("Town") || mapName.Contains("Shop") || 
+                mapName.Contains("Saloon") || mapName == "ManorHouse" || 
+                mapName == "Blacksmith" || mapName == "Hospital" ||
+                mapName.Contains("JojaMart"))
                 return "Town";
 
             // Farm locations
-            if (mapName == "Farm" || mapName.Contains("Farm_") ||
-                mapName.Contains("Coop") || mapName.Contains("Barn") || 
-                mapName.Contains("Shed") || mapName == "FarmHouse" ||
-                mapName == "Greenhouse" || mapName == "Cellar" || mapName == "Sunroom")
+            if (mapName.Contains("Farm") || mapName == "Greenhouse" || 
+                mapName == "Cellar")
                 return "Farm";
 
-            // Beach locations (https://stardewvalleywiki.com/Category:Beach_Locations)
-            if (mapName == "Beach" || mapName == "ElliottHouse" || mapName == "FishShop" ||
-                mapName.Contains("Tide") || mapName == "Submarine" || mapName == "NightMarket" ||
-                mapName.Contains("Docks") || mapName.Contains("Pier"))
+            // Beach locations
+            if (mapName.Contains("Beach") || mapName == "ElliottHouse" || 
+                mapName == "FishShop")
                 return "Beach";
 
-            // Desert locations (https://stardewvalleywiki.com/Category:Desert_Locations)
-            if (mapName == "Desert" || mapName == "SandyHouse" || mapName == "SandyShop" ||
-                mapName == "SkullCave" || mapName == "ClubDesert" || mapName == "CalicoCasino" ||
-                mapName == "Oasis" || mapName.Contains("Desert_"))
+            // Desert locations
+            if (mapName.Contains("Desert") || mapName == "Club")
                 return "Desert";
 
-            // Forest locations (https://stardewvalleywiki.com/Category:Forest_Locations)
-            if (mapName == "Forest" || mapName == "Woods" || mapName == "SecretWoods" ||
-                mapName == "WizardHouse" || mapName == "WitchSwamp" || mapName == "WitchHut" ||
-                mapName == "LeahHouse" || mapName == "BusStop" || mapName == "AnimalShop" ||
-                mapName == "SewagePipe" || mapName == "HatMouse")
+            // Forest locations
+            if (mapName.Contains("Forest") || mapName == "Woods" || 
+                mapName == "WizardHouse" || mapName == "LeahHouse" || 
+                mapName == "AnimalShop")
                 return "Forest";
 
-            // Mountain locations (https://stardewvalleywiki.com/Category:Mountain_Locations)
-            if (mapName == "Mountain" || mapName == "Railroad" || mapName == "ScienceHouse" ||
-                mapName == "Tent" || mapName == "AdventureGuild" || mapName == "MineEntrance" ||
-                mapName.Contains("Mine") || mapName == "Carpenter" || mapName == "Quarry" ||
-                mapName == "Summit" || mapName == "Bath_Entry" || mapName == "BathHouse_Entry" ||
-                mapName == "BathHouse_MensLocker" || mapName == "BathHouse_WomensLocker" ||
-                mapName == "BathHouse_Pool" || mapName.Contains("Spa"))
+            // Mountain locations
+            if (mapName.Contains("Mountain") || mapName == "Mine" || 
+                mapName.Contains("Guild") || mapName.Contains("BathHouse"))
                 return "Mountain";
 
-            // Island locations (https://stardewvalleywiki.com/Category:Island_Locations)
-            if (mapName.Contains("Island") || mapName.Contains("Volcano") || 
-                mapName.Contains("Ginger") || mapName.Contains("Fern") || mapName == "Caldera" ||
-                mapName == "QiNutRoom" || mapName == "IslandSouthEastCave" || 
-                mapName == "IslandShrine" || mapName == "IslandFarmHouse")
+            // Island locations
+            if (mapName.Contains("Island") || mapName == "Caldera")
                 return "Island";
 
-            // Indoor locations (catch-all for rooms and houses that don't fit elsewhere)
-            if ((mapName.Contains("Room") || mapName.Contains("House") || mapName.Contains("Cabin") ||
-                mapName.Contains("Interior") || mapName.Contains("Shop")) &&
-                !mapName.Contains("Island") && !mapName.Contains("Beach") && 
-                !mapName.Contains("Desert") && !mapName.Contains("Mountain"))
-                return "Indoor";
-
-            // Check if this appears to be a modded location
-            if (IsModdedLocation(mapName))
+            // Check if this is a modded location
+            if (IsModdedLocation(mapName) && Config.ShowSVELocations)
                 return MOD_LOCATIONS_CATEGORY;
 
             // Default to Town if no match found
@@ -387,325 +545,152 @@ namespace WarpMod.Utility
         /// </summary>
         public string GetDisplayName(string locationName)
         {
-            // Special cases for location names based on wiki categories
-            switch (locationName)
+            // Use a dictionary for cleaner mapping and easier updates
+            var nameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                // Town locations
-                case "Town":
-                    return "Pelican Town";
-                case "SeedShop":
-                    return "Pierre's Shop";
-                case "Saloon":
-                    return "Stardrop Saloon";
-                case "ManorHouse":
-                    return "Mayor's House";
-                case "Blacksmith":
-                    return "Blacksmith";
-                case "Hospital":
-                    return "Harvey's Clinic";
-                case "SamHouse":
-                    return "Sam's House";
-                case "HaleyHouse":
-                    return "Haley & Emily's";
-                case "JojaMart":
-                    return "JojaMart";
-                case "AbandonedJojaMart":
-                    return "Old JojaMart";
-                case "JoshHouse":
-                    return "Evelyn & George's";
-                case "Trailer":
-                    return "Penny's Trailer";
-                case "Trailer_Big":
-                    return "Pam's House";
-                case "CommunityCenter":
-                    return "Community Center";
-                case "MovieTheater":
-                case "Theater":
-                    return "Movie Theater";
-                case "ArchaeologyHouse":
-                    return "Museum";
-                    
-                // Farm locations
-                case "Farm":
-                    return "Farm";
-                case "FarmHouse":
-                    return "Farmhouse";
-                case "Greenhouse":
-                case "Sunroom":
-                    return "Greenhouse";
-                case "Cellar":
-                    return "Farmhouse Cellar";
-                case "Coop":
-                    return "Coop";
-                case "Big Coop":
-                    return "Big Coop";
-                case "Deluxe Coop":
-                    return "Deluxe Coop";
-                case "Barn":
-                    return "Barn";
-                case "Big Barn":
-                    return "Big Barn";
-                case "Deluxe Barn":
-                    return "Deluxe Barn";
-                case "Shed":
-                    return "Shed";
-                case "Big Shed":
-                    return "Big Shed";
-                    
-                // Beach locations
-                case "Beach":
-                    return "Beach";
-                case "ElliottHouse":
-                    return "Elliott's Cabin";
-                case "FishShop":
-                    return "Fish Shop";
-                case "NightMarket":
-                    return "Night Market";
-                    
-                // Desert locations
-                case "Desert":
-                    return "Calico Desert";
-                case "SkullCave":
-                    return "Skull Cavern";
-                case "SandyHouse":
-                case "SandyShop":
-                    return "Oasis";
-                case "CalicoCasino":
-                    return "Casino";
-                    
-                // Forest locations
-                case "Forest":
-                    return "Cindersap Forest";
-                case "Woods":
-                case "SecretWoods":
-                    return "Secret Woods";
-                case "WizardHouse":
-                    return "Wizard's Tower";
-                case "WitchSwamp":
-                    return "Witch's Swamp";
-                case "WitchHut":
-                    return "Witch's Hut";
-                case "LeahHouse":
-                    return "Leah's Cottage";
-                case "BusStop":
-                    return "Bus Stop";
-                case "AnimalShop":
-                    return "Marnie's Ranch";
-                case "SewagePipe":
-                    return "Sewer";
-                case "HatMouse":
-                    return "Hat Mouse";
-                    
-                // Mountain locations
-                case "Mountain":
-                    return "Mountain";
-                case "Railroad":
-                    return "Railroad";
-                case "ScienceHouse":
-                    return "Carpenter's Shop";
-                case "Tent":
-                    return "Linus's Tent";
-                case "AdventureGuild":
-                    return "Adventurer's Guild";
-                case "MineEntrance":
-                    return "Mine Entrance";
-                case "Mine1":
-                    return "Mine Level 1";
-                case "Mine120":
-                    return "Mine Level 120";
-                case "Carpenter":
-                    return "Robin's Shop";
-                case "Quarry":
-                    return "Quarry";
-                case "Summit":
-                    return "Mountain Summit";
-                case "BathHouse_Entry":
-                case "Bath_Entry":
-                    return "Bathhouse Entrance";
-                case "BathHouse_MensLocker":
-                    return "Men's Locker Room";
-                case "BathHouse_WomensLocker":
-                    return "Women's Locker Room";
-                case "BathHouse_Pool":
-                    return "Bath Pool";
-                    
-                // Island locations
-                case "IslandSouth":
-                    return "Ginger Island South";
-                case "IslandWest":
-                    return "Ginger Island West";
-                case "IslandNorth":
-                    return "Ginger Island North";
-                case "IslandEast":
-                    return "Ginger Island East";
-                case "IslandFarmHouse":
-                    return "Island Farmhouse";
-                case "VolcanoDungeon0":
-                    return "Volcano Entrance";
-                case "VolcanoDungeon10":
-                    return "Volcano Level 10";
-                case "Caldera":
-                    return "Volcano Caldera";
-                case "IslandHut":
-                    return "Leo's Hut";
-                case "IslandShrine":
-                    return "Island Shrine";
-                case "IslandSouthEastCave":
-                    return "Pirate Cove";
-                case "QiNutRoom":
-                    return "Qi's Walnut Room";
-                    
-                // SVE/mod locations
-                case "Custom_AdventureGuild":
-                    return "SVE Guild";
-                case "Custom_Backwoods":
-                    return "SVE Backwoods";
-                case var s when s.StartsWith("Custom_"):
-                    return s.Replace("Custom_", "").Replace("_", " ");
-                case var s when s.StartsWith("SVE_"):
-                    return s.Replace("SVE_", "").Replace("_", " ");
+                // Town Locations (Referencing https://stardewvalleywiki.com/Category:Town_Locations)
+                { "Town", "Pelican Town" },
+                { "SeedShop", "Pierre's General Store" }, // Wiki name
+                { "Saloon", "Stardrop Saloon" },
+                { "ManorHouse", "Mayor's Manor" }, // Wiki name
+                { "Blacksmith", "Blacksmith" },
+                { "Hospital", "Harvey's Clinic" }, // Wiki name
+                { "JojaMart", "JojaMart" },
+                { "AbandonedJojaMart", "Abandoned JojaMart" },
+                { "MovieTheater", "Movie Theater" },
+                { "ArchaeologyHouse", "Museum" }, // Wiki name
+                { "HarveyRoom", "Harvey's Room" },
+                { "HaleyHouse", "2 Willow Lane" }, // Wiki name (Haley/Emily's House)
+                { "SamHouse", "1 Willow Lane" }, // Wiki name (Jodi/Kent/Sam/Vincent's House)
+                { "JoshHouse", "1 River Road" }, // Wiki name (George/Evelyn/Alex's House)
+                { "CommunityCenter", "Community Center" },
+                { "Sewer", "The Sewers" }, // Wiki name
+
+                // Farm Locations
+                { "Farm", "Farm" },
+                { "FarmHouse", "Farmhouse" },
+                { "Greenhouse", "Greenhouse" },
+                { "Cellar", "Cellar" }, // Often referred to as Farmhouse Cellar
+                { "FarmCave", "Farm Cave" },
+
+                // Beach Locations
+                { "Beach", "The Beach" }, // Wiki name
+                { "ElliottHouse", "Elliott's Cabin" }, // Wiki name
+                { "FishShop", "Willy's Fish Shop" }, // Wiki name
+
+                // Desert Locations
+                { "Desert", "Calico Desert" }, // Wiki name
+                { "Club", "Casino" }, // Wiki name (located in Oasis)
+                { "SkullCave", "Skull Cavern" }, // Wiki name
+
+                // Forest Locations
+                { "Forest", "Cindersap Forest" }, // Wiki name
+                { "Woods", "Secret Woods" }, // Wiki name
+                { "WizardHouse", "Wizard's Tower" }, // Wiki name
+                { "LeahHouse", "Leah's Cottage" }, // Wiki name
+                { "AnimalShop", "Marnie's Ranch" }, // Wiki name
+                { "HatMouseHouse", "Abandoned House" }, // Wiki name (Hat Mouse)
+                { "BugLand", "Mutant Bug Lair" }, // Wiki name
+
+                // Mountain Locations
+                { "Mountain", "The Mountain" }, // Wiki name
+                { "Mine", "The Mines" }, // Wiki name (Entrance)
+                { "AdventureGuild", "Adventurer's Guild" }, // Wiki name
+                { "BathHouse_Entry", "Spa Entrance" }, // More descriptive
+                { "BathHouse_Mens" , "Spa Entrance" }, // More descriptive
+                { "BathHouse_Womens", "Spa Entrance" }, // More descriptive
+            };
+            
+            if (nameMap.TryGetValue(locationName, out string displayName))
+            {
+                return displayName;
             }
             
-            // Handle modded locations by cleaning up their names
-            if (IsModdedLocation(locationName))
-            {
-                // Remove common modded location prefixes
-                string cleanName = locationName
-                    .Replace("Custom_", "")
-                    .Replace("SVE_", "")
-                    .Replace("DIGUS.", "")
-                    .Replace("JA_", "")
-                    .Replace("CP_", "");
-                
-                // Replace underscores with spaces
-                cleanName = cleanName.Replace("_", " ");
-                
-                // If there's a period, take only what's after it (often used in modded locations)
-                if (cleanName.Contains("."))
-                {
-                    cleanName = cleanName.Substring(cleanName.LastIndexOf('.') + 1);
-                }
-                
-                return cleanName;
-            }
-            
-            // Default split on capital letters and clean up
-            return string.Join(" ", System.Text.RegularExpressions.Regex.Split(locationName, @"(?<!^)(?=[A-Z]|\d)"))
-                .Replace("_", " ");
+            return locationName; // Fallback to original name if not found
         }
 
         /// <summary>
         /// Get all available location categories
         /// </summary>
-        public IEnumerable<string> GetCategories()
+        public List<string> GetCategories()
         {
-            // Only return categories that have locations in them
-            return locationTabs.Keys.Where(k => locationTabs[k].Count > 0);
+            return locationTabs.Keys.ToList();
         }
-
+        
         /// <summary>
         /// Get all locations in a specific category
         /// </summary>
         public List<string> GetLocationsInCategory(string category)
         {
-            if (locationTabs.TryGetValue(category, out var locations))
+            if (locationTabs.ContainsKey(category))
             {
-                return locations;
+                return locationTabs[category];
             }
             return new List<string>();
         }
-
+        
         /// <summary>
-        /// Load a specific location by name
+        /// Load a specific location and return the GameLocation object
         /// </summary>
-        /// <param name="locationName">The name of the location to load</param>
-        /// <returns>The GameLocation object if found, null otherwise</returns>
         public GameLocation LoadLocation(string locationName)
         {
-            if (string.IsNullOrEmpty(locationName))
-                return null;
-                
-            // Try to get the location from the game
-            GameLocation location = Game1.getLocationFromName(locationName);
+            // Refresh the locations list
+            LoadLocations();
             
-            // Log if location couldn't be found
-            if (location == null)
-            {
-                Monitor.Log($"Could not find location: {locationName}", LogLevel.Debug);
-            }
-            
-            return location;
+            // Return the location object
+            return Game1.getLocationFromName(locationName);
         }
-
+        
         /// <summary>
-        /// Updates the list of locations for a specific category
+        /// Warp the player to a specific tile in a location
         /// </summary>
-        /// <param name="category">The category to update</param>
-        /// <param name="searchText">Optional search text to filter locations</param>
-        /// <returns>The updated list of location names</returns>
-        public List<string> UpdateCategoryLocations(string category, string searchText = "")
+        public bool WarpToLocation(string locationName, int tileX, int tileY)
         {
-            if (!locationTabs.ContainsKey(category))
-                return new List<string>();
-                
-            // If no search text, return the full list for the category
-            if (string.IsNullOrWhiteSpace(searchText))
-                return locationTabs[category];
-                
-            // Filter locations by search text
-            return locationTabs[category]
-                .Where(location => location.ToLower().Contains(searchText.ToLower()))
-                .ToList();
-        }
-
-        /// <summary>
-        /// Warps the player to the specified location
-        /// </summary>
-        /// <param name="locationName">The name of the location to warp to</param>
-        /// <param name="tileX">Optional X tile coordinate within the location</param>
-        /// <param name="tileY">Optional Y tile coordinate within the location</param>
-        /// <returns>True if warp was successful, false otherwise</returns>
-        public bool WarpToLocation(string locationName, int? tileX = null, int? tileY = null)
-        {
-            // Validate location name
-            if (string.IsNullOrEmpty(locationName))
-            {
-                Monitor.Log("Cannot warp to a location with no name", LogLevel.Warn);
-                return false;
-            }
-            
-            // Try to get the location
-            GameLocation targetLocation = LoadLocation(locationName);
-            if (targetLocation == null)
-            {
-                Monitor.Log($"Failed to warp: Location '{locationName}' not found", LogLevel.Error);
-                return false;
-            }
-            
             try
             {
-                // If no specific coordinates are provided, use default warp point
-                if (!tileX.HasValue || !tileY.HasValue)
+                // Find the Game1.location object from the name
+                GameLocation targetLocation = Game1.getLocationFromName(locationName);
+                
+                if (targetLocation == null)
                 {
-                    // Use default warp point or center of map
-                    tileX = targetLocation.warps.Count > 0 
-                        ? targetLocation.warps[0].X  // Use first warp point
-                        : targetLocation.map.Layers[0].LayerWidth / 2;  // Use center of map
-                        
-                    tileY = targetLocation.warps.Count > 0 
-                        ? targetLocation.warps[0].Y 
-                        : targetLocation.map.Layers[0].LayerHeight / 2;
+                    Monitor.Log($"Could not find location: {locationName}", LogLevel.Error);
+                    return false;
                 }
                 
-                // Ensure the tile is valid (not outside the map or in a wall)
-                tileX = Math.Max(0, Math.Min(tileX.Value, targetLocation.map.Layers[0].LayerWidth - 1));
-                tileY = Math.Max(0, Math.Min(tileY.Value, targetLocation.map.Layers[0].LayerHeight - 1));
+                // Check if the specified tile is valid
+                if (!IsTileValid(targetLocation, tileX, tileY))
+                {
+                    // If not, try to find a nearby valid tile
+                    Point validPoint = FindNearestValidTile(targetLocation, tileX, tileY);
+                    if (validPoint.X >= 0 && validPoint.Y >= 0)
+                    {
+                        tileX = validPoint.X;
+                        tileY = validPoint.Y;
+                    }
+                    else
+                    {
+                        Monitor.Log($"Could not find a valid warp point near ({tileX}, {tileY}) in {locationName}", LogLevel.Error);
+                        return false;
+                    }
+                }
                 
-                // Perform the warp
-                Game1.warpFarmer(locationName, tileX.Value, tileY.Value, Game1.player.FacingDirection, true);
+                // Apply warp effect if configured
+                if (Config.UseWarpEffects)
+                {
+                    Game1.player.temporarilyInvincible = true;
+                    Game1.player.temporaryInvincibilityTimer = 0;
+                    Game1.player.jitterStrength = 1f;
+                    Game1.fadeToBlackAlpha = 0.99f;
+                    Game1.screenGlow = false;
+                    
+                    // Add the visual effects for warping
+                    Game1.player.CanMove = false;
+                    Game1.playSound("wand");
+                }
                 
-                // Log success
-                Monitor.Log($"Warped to {locationName} at tile ({tileX}, {tileY})", LogLevel.Debug);
+                // Perform the actual warp
+                Game1.warpFarmer(locationName, tileX, tileY, Game1.player.FacingDirection);
+                Monitor.Log($"Warped to {locationName} at ({tileX}, {tileY})", LogLevel.Trace);
                 return true;
             }
             catch (Exception ex)
@@ -714,109 +699,127 @@ namespace WarpMod.Utility
                 return false;
             }
         }
-
+        
         /// <summary>
-        /// Warp the player to a specific location
+        /// Find the nearest valid tile to a given position
         /// </summary>
-        public void WarpToLocation(string locationName, Vector2 tilePosition)
+        private Point FindNearestValidTile(GameLocation location, int centerX, int centerY)
         {
-            if (string.IsNullOrEmpty(locationName))
+            // Try the center position first
+            if (IsTileValid(location, centerX, centerY))
             {
-                Monitor.Log("Cannot warp to a null or empty location name", LogLevel.Error);
-                return;
+                return new Point(centerX, centerY);
             }
-
-            // Get the target location
-            GameLocation targetLocation = Game1.getLocationFromName(locationName);
-            if (targetLocation == null)
-            {
-                Monitor.Log($"Failed to find location '{locationName}' to warp to", LogLevel.Error);
-                return;
-            }
-
-            // Check if the target position is valid
-            if (!targetLocation.isTileOnMap(tilePosition))
-            {
-                // Find a valid warp position
-                tilePosition = FindValidWarpPosition(targetLocation);
-            }
-
-            // Perform the warp
-            Game1.player.position.Value = new Vector2(tilePosition.X * 64f, tilePosition.Y * 64f);
-            Game1.warpFarmer(locationName, (int)tilePosition.X, (int)tilePosition.Y, true);
-            Monitor.Log($"Warped player to {locationName} at position ({tilePosition.X}, {tilePosition.Y})", LogLevel.Debug);
-        }
-
-        /// <summary>
-        /// Find a valid warp position in a location
-        /// </summary>
-        private Vector2 FindValidWarpPosition(GameLocation location)
-        {
-            // Check if this location has warp points
-            if (location.warps.Count > 0)
-            {
-                var warp = location.warps[0];
-                return new Vector2(warp.X, warp.Y);
-            }
-
-            // Try to find a valid position in the center of the map
-            int centerX = location.map.Layers[0].LayerWidth / 2;
-            int centerY = location.map.Layers[0].LayerHeight / 2;
             
-            // Start from the center and spiral outward to find a valid tile
-            for (int radius = 0; radius < 10; radius++)
+            // Spiral out from center to find a valid tile
+            for (int radius = 1; radius < 10; radius++)
             {
+                // Check in a square pattern around the center
                 for (int x = centerX - radius; x <= centerX + radius; x++)
                 {
                     for (int y = centerY - radius; y <= centerY + radius; y++)
                     {
-                        if (x < 0 || y < 0 || x >= location.map.Layers[0].LayerWidth || y >= location.map.Layers[0].LayerHeight)
-                            continue;
-                            
-                        if (FindSafeTile(x, y, location))
+                        // Only check the perimeter of the square
+                        if (x == centerX - radius || x == centerX + radius || 
+                            y == centerY - radius || y == centerY + radius)
                         {
-                            return new Vector2(x, y);
+                            if (IsTileValid(location, x, y))
+                            {
+                                return new Point(x, y);
+                            }
                         }
                     }
                 }
             }
             
-            // If no valid tile found, just return the center
-            return new Vector2(centerX, centerY);
+            // No valid tile found nearby
+            return new Point(-1, -1);
         }
-
+        
         /// <summary>
-        /// Check if a tile is safe for warping
+        /// Checks if a tile is valid for warping (not blocked, etc.)
         /// </summary>
-        private bool FindSafeTile(int x, int y, GameLocation location)
+        private bool IsTileValid(GameLocation location, int x, int y)
         {
-            try
-            {
-                // Use the available methods in Stardew Valley to check if tile is valid
-                Vector2 tileVector = new Vector2(x, y);
-                return location.isTileLocationOpen(tileVector) && !location.isWaterTile(x, y);
-            }
-            catch (Exception)
-            {
-                // Fallback in case of any exceptions
+            Vector2 tileVector = new Vector2(x, y);
+            Rectangle tileRect = new Rectangle(x * Game1.tileSize, y * Game1.tileSize, Game1.tileSize, Game1.tileSize);
+
+            // Check if the tile is within bounds
+            if (x < 0 || x >= location.map.Layers[0].LayerWidth || y < 0 || y >= location.map.Layers[0].LayerHeight)
                 return false;
-            }
-        }
 
-        /// <summary>
-        /// Update the locations in a category
-        /// </summary>
-        public void UpdateCategoryLocations(string category, List<string> locations)
-        {
-            if (locationTabs.ContainsKey(category))
+            // Check for explicit "NoWarp" property on tile
+            string noWarpProp = location.doesTileHaveProperty(x, y, "NoWarp", "Back");
+            if (!string.IsNullOrEmpty(noWarpProp) && noWarpProp.Equals("T", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            // Check if the tile is passable according to the map layer (basic check)
+            if (!location.isTilePassable(new xTile.Dimensions.Location(x, y), Game1.viewport))
+                 return false;
+
+            // Check if the tile is occupied by a non-passable object
+            if (location.objects.TryGetValue(tileVector, out StardewValley.Object obj) && !obj.isPassable())
             {
-                locationTabs[category] = new List<string>(locations);
-                Monitor.Log($"Updated {locations.Count} locations in category: {category}", LogLevel.Debug);
+                 return false;
             }
-            else
+
+            // Check if the tile is occupied by a large terrain feature (like a bush or tree)
+            foreach (LargeTerrainFeature ltf in location.largeTerrainFeatures)
             {
-                Monitor.Log($"Cannot update unknown category: {category}", LogLevel.Warn);
+                if (ltf.getBoundingBox().Intersects(tileRect))
+                {
+                    return false; // Large terrain features generally block warping onto their tile
+                }
             }
+
+            // Check for furniture collision
+            foreach (var furniture in location.furniture)
+            {
+                 // Use boundingBox.Value as boundingBox is a NetRectangle
+                 if (furniture.boundingBox.Value.Intersects(tileRect))
+                 {
+                     // Check if the furniture piece is passable (like rugs)
+                     // Use fully qualified constants from StardewValley.Objects.Furniture
+                     if (furniture.furniture_type.Value != StardewValley.Objects.Furniture.rug && furniture.furniture_type.Value != StardewValley.Objects.Furniture.window) // Rugs and windows are generally passable
+                     {
+                         return false;
+                     }
+                 }
+            }
+
+            // Check for water/unwalkable paths explicitly marked
+            if (location.doesTileHaveProperty(x, y, "Water", "Back") != null ||
+                location.doesTileHaveProperty(x, y, "Unwalkable", "Back") != null)
+                return false;
+
+            // Check for NPC pathing obstacles
+            if (location.doesTileHavePropertyNoNull(x, y, "NoPath", "Buildings") == "T")
+                return false;
+
+            // Check for special areas in mines/skull cavern/volcano where players shouldn't go
+            if ((location.Name.Contains("Mine") || location.Name.Contains("SkullCave") || location.Name.Contains("Volcano")))
+            {
+                // Check for edge cases like ladder positions, shafts, etc.
+                if (location.objects.TryGetValue(tileVector, out StardewValley.Object mineObj) && (mineObj.Name.Contains("Ladder") || mineObj.Name.Contains("Shaft")))
+                    return false; // Don't warp onto ladders or shafts
+
+                // Check for deep water or lava
+                if (location.doesTileHaveProperty(x, y, "WaterSource", "Back") != null ||
+                    location.doesTileHaveProperty(x, y, "Lava", "Back") != null)
+                    return false;
+            }
+
+            // Check for edge tiles to avoid warping onto map edges or existing warps
+            if (x <= 1 || y <= 1 || x >= location.map.Layers[0].LayerWidth - 2 || y >= location.map.Layers[0].LayerHeight - 2)
+            {
+                // Check if this edge tile has a warp
+                if (location.isCollidingWithWarpOrDoor(tileRect, Game1.player) != null)
+                    return false; // Don't allow warping onto warps
+            }
+
+
+            // Tile is considered valid for warping
+            return true;
         }
     }
 }

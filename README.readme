@@ -1,0 +1,67 @@
+MAGIC ATLAS<br><br>
+
+A magical map interface that lets you instantly warp to any location in Stardew Valley.<br><br>
+
+DESCRIPTION<br>
+-----------<br><br>
+
+Magic Atlas provides an elegant grid-based menu with location previews that allows you to instantly warp to any location in the game. The mod includes map thumbnails for all vanilla locations and supports modded locations (including Stardew Valley Expanded).<br><br>
+
+NEW IN VERSION 0.3.0: The Magic Atlas is now an in-game item that can be found in the Town Fountain! Visit the fountain during winter to retrieve it.<br><br>
+
+NOTE: This mod was created entirely with AI. No coding was done by me personally - the entire project was generated using artificial intelligence tools. Even this README file was written using AI, specifically Claude Sonnet 3.7 and Gemini 2.5 Pro working together to create the documentation.<br><br>
+
+FEATURES<br>
+--------<br><br>
+
+* In-game Magic Atlas item found hidden in the Town Fountain<br>
+* Grid-based location warp menu with visual map thumbnails<br>
+* Player position indicator on current location's map<br>
+* Support for modded locations<br>
+* Customizable key binding<br><br>
+
+HOW TO FIND THE ATLAS<br>
+-------------------<br><br>
+
+1. Visit the Town Fountain in Pelican Town<br>
+2. During non-winter seasons, you'll notice something shimmering beneath the water<br>
+3. Return during winter when the fountain is frozen/empty to retrieve the Magic Atlas<br>
+4. Once found, the Magic Atlas will be added to your inventory<br><br>
+
+CONTROLS<br>
+--------<br><br>
+
+* Use the Magic Atlas item from your inventory to open the warp menu<br>
+* Select any location to instantly warp there<br>
+* Click on the map to warp to a specific spot in that location<br><br>
+
+CONFIGURATION<br>
+-------------<br><br>
+
+After first launch, edit the config.json file to customize:<br><br>
+
+* WarpKey: The key to open the warp menu if the "Use Atlas Without Item" option is enabled (default: "K")<br>
+* MapWarpEnabled: Enable/disable the warp functionality (default: true)<br>
+* AllowHotkeyWithoutItem: Allow using the warp key without having the Magic Atlas item (default: false)<br>
+* EnableMapCaching: Cache map images for better performance (default: true)<br>
+* ShowSVELocations: Show Stardew Valley Expanded locations if installed (default: true)<br>
+* MapImagesPath: Custom path for map images (optional)<br><br>
+
+COMPATIBILITY<br>
+-------------<br><br>
+
+* Works with Stardew Valley 1.5.6 or later<br>
+* Compatible with Stardew Valley Expanded and other location mods<br>
+* Compatible with most other SMAPI mods<br><br>
+
+INSTALLATION<br>
+------------<br><br>
+
+1. Install SMAPI (smapi.io)<br>
+2. Download and unzip the mod into your Stardew Valley/Mods folder<br>
+3. Launch the game with SMAPI<br><br>
+
+FOR MORE INFORMATION<br>
+--------------------<br><br>
+
+Visit the Nexus Mods page (nexusmods.com/stardewvalley/mods/32591) or check the full README on the GitHub repository: https://github.com/ragdollKB/stardew-magic-atlas

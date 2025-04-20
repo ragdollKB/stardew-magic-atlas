@@ -1,0 +1,26 @@
+{
+  "Format": "2.5.0",
+  "Changes": [
+    {
+      "Action": "EditData",
+      "Target": "Data/Objects",
+      "Entries": {
+        "ragdollkb.MagicAtlas": {
+          "Name": "Magic Atlas",
+          "DisplayName": "Magic Atlas",
+          "Description": "A magical atlas that lets you warp anywhere you've been.",
+          "Type": "Arch",
+          "Category": -102,
+          "Price": 0,
+          "Texture": "Mods/ragdollkb/Objects",
+          "SpriteIndex": 0
+        }
+      }
+    },
+    {
+      "Action": "Load",
+      "Target": "Mods/ragdollkb/Objects",
+      "FromFile": "assets/MagicAtlas.png"
+    }
+  ]
+}

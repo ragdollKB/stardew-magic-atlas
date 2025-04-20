@@ -3,8 +3,11 @@ using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Menus;
+using StardewValley.Tools;
 using System;
 using System.IO;
+using System.Reflection;
+using System.Linq; // Add this for LINQ methods
 using WarpMod.Utility;
 
 namespace WarpMod
@@ -15,6 +18,7 @@ namespace WarpMod
         private ModConfig config;
         private bool mapWarpEnabled = true; // Enable map warping by default
         private MapRenderer mapRenderer; // Store reference for resource cleanup
+        private FountainHandler fountainHandler; // Handler for fountain interaction with atlas
 
         /// <summary>The mod entry point, called after the mod is first loaded.</summary>
         /// <param name="helper">Provides simplified APIs for writing mods.</param>
@@ -22,10 +26,13 @@ namespace WarpMod
         {
             // Read config and initialize
             this.config = helper.ReadConfig<ModConfig>();
-            this.mapWarpEnabled = this.config.MapWarpEnabled;
+            this.mapWarpEnabled = this.config.EnableWarping;
             
-            // Initialize the map renderer for potential caching
+            // Initialize the map renderer
             this.mapRenderer = new MapRenderer(this.Monitor, helper);
+            
+            // Initialize the Magic Atlas item
+            MagicAtlasItem.Initialize(helper, this.Monitor, this.config);
 
             // Hook into events
             helper.Events.Input.ButtonPressed += this.OnButtonPressed;
@@ -33,8 +40,15 @@ namespace WarpMod
             helper.Events.GameLoop.SaveLoaded += this.OnSaveLoaded;
             helper.Events.GameLoop.ReturnedToTitle += this.OnReturnedToTitle;
             helper.Events.Display.WindowResized += this.OnWindowResized;
+            helper.Events.GameLoop.DayStarted += this.OnDayStarted;
+            helper.Events.GameLoop.DayEnding += this.OnDayEnding;
+            // Add handler for item usage
+            helper.Events.Player.InventoryChanged += this.OnInventoryChanged;
+            helper.Events.Input.ButtonReleased += this.OnButtonReleased;
+            // Register the Magic Atlas item for serialization (so it loads properly)
+            helper.ConsoleCommands.Add("give_atlas", "Gives you the Magic Atlas item for testing.", this.GiveAtlasCommand);
 
-            this.Monitor.Log("Warp Mod initialized with custom grid menu", LogLevel.Info);
+            this.Monitor.Log("Magic Atlas mod initialized", LogLevel.Info);
         }
 
         /// <summary>Raised after the player presses a button on the keyboard, controller, or mouse.</summary>
@@ -50,40 +64,85 @@ namespace WarpMod
                 return;
                 
             // Check if warp key is pressed (using config binding)
-            if (this.config.WarpKey.JustPressed())
+            if (this.config.WarpKey.JustPressed() && (this.config.AllowWarpingWithoutItem || MagicAtlasItem.HasBeenRead()))
             {
-                // Instead of letting the game open its map, open our custom menu
+                // Open our custom menu
                 Game1.activeClickableMenu = new GridWarpMenu(this.Helper, this.Monitor, this.config);
                 Helper.Input.Suppress(e.Button);
             }
+        }
+        
+        /// <summary>Debug command to give the player an atlas</summary>
+        private void GiveAtlasCommand(string command, string[] args)
+        {
+            if (!Context.IsWorldReady)
+            {
+                this.Monitor.Log("You need to load a save first!", LogLevel.Error);
+                return;
+            }
+            // Check if player already has an atlas to prevent duplicates
+            bool alreadyHasAtlas = Game1.player.Items.Any(item =>
+                item is StardewValley.Object obj &&
+                obj.modData != null &&
+                obj.modData.ContainsKey("ragdollkb.magicatlas")
+            );
+            if (alreadyHasAtlas)
+            {
+                this.Monitor.Log("Player already has a Magic Atlas!", LogLevel.Info);
+                return;
+            }
+            var atlas = new StardewValley.Object("68", 1);
+            atlas.modData["ragdollkb.magicatlas"] = "true";
+            atlas.Name = "Magic Atlas";
+            atlas.SpecialVariable = 1;
+            if (Game1.player.addItemToInventory(atlas) != null)
+            {
+                Game1.createItemDebris(atlas, Game1.player.Position, -1);
+            }
+            this.Monitor.Log("Magic Atlas added to inventory!", LogLevel.Info);
+        }
+
+        /// <summary>Called when a new day starts</summary>
+        private void OnDayStarted(object sender, DayStartedEventArgs e)
+        {
+            // Nothing needed here
         }
 
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
             // Refresh settings when save is loaded
-            this.mapWarpEnabled = this.config.MapWarpEnabled;
-            this.Monitor.Log($"Grid warp is {(this.mapWarpEnabled ? "enabled" : "disabled")}", LogLevel.Info);
+            this.mapWarpEnabled = this.config.EnableWarping;
             
-            // Log available map files to verify our copied files are accessible
-            this.Monitor.Log("Checking for map files in assets/maps folder...", LogLevel.Info);
-            this.mapRenderer.LogAvailableMaps();
+            // Initialize the fountain handler after save is loaded
+            this.fountainHandler = new FountainHandler(this.Helper, this.Monitor, this.config);
             
-            // Pre-cache map thumbnails if enabled
-            if (this.config.EnableMapCaching)
-            {
-                this.Monitor.Log("Pre-caching map thumbnails for better performance", LogLevel.Debug);
-                
-                // Set custom map images path if configured
-                if (!string.IsNullOrEmpty(this.config.MapImagesPath) && Directory.Exists(this.config.MapImagesPath))
-                {
-                    this.Monitor.Log($"Using custom map images path: {this.config.MapImagesPath}", LogLevel.Info);
-                }
-                
-                mapRenderer.CacheThumbnailsForCommonLocations();
-            }
+            // Check if map files exist in assets folder
+            CheckMapAssets();
             
             // Check if SVE is installed and log
             CheckForSVE();
+        }
+        
+        /// <summary>Check if map assets exist in the assets folder</summary>
+        private void CheckMapAssets()
+        {
+            string mapFolder = Path.Combine(this.Helper.DirectoryPath, "assets", "maps");
+            if (Directory.Exists(mapFolder))
+            {
+                string[] mapFiles = Directory.GetFiles(mapFolder, "*.png");
+                this.Monitor.Log($"Found {mapFiles.Length} map files in assets/maps folder", LogLevel.Info);
+            }
+            else
+            {
+                this.Monitor.Log("Map assets folder not found. Maps may not display correctly.", LogLevel.Warn);
+            }
+            
+            // Also check for required item assets
+            string itemsFolder = Path.Combine(this.Helper.DirectoryPath, "assets", "items");
+            if (!Directory.Exists(itemsFolder) || !File.Exists(Path.Combine(itemsFolder, "MagicAtlas.png")))
+            {
+                this.Monitor.Log("Magic Atlas item texture not found. Please add the texture at assets/items/MagicAtlas.png", LogLevel.Warn);
+            }
         }
         
         /// <summary>Check if SVE is installed and log appropriate message</summary>
@@ -106,23 +165,20 @@ namespace WarpMod
             }
         }
 
+        /// <summary>Called when the day is ending</summary>
+        private void OnDayEnding(object sender, DayEndingEventArgs e)
+        {
+            // Nothing needed here in simplified version
+        }
+
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
         {
-            // Clean up resources when returning to title
-            if (this.config.EnableMapCaching && mapRenderer != null)
-            {
-                this.Monitor.Log("Cleaning up cached map thumbnails", LogLevel.Debug);
-                mapRenderer.CleanupCache();
-            }
+            // Cleanup not needed in simplified version
         }
         
         private void OnWindowResized(object sender, WindowResizedEventArgs e)
         {
-            // Clear map cache when window is resized to prevent scaling issues
-            if (this.config.EnableMapCaching && mapRenderer != null)
-            {
-                mapRenderer.CleanupCache();
-            }
+            // Cleanup not needed in simplified version
         }
 
         private void OnGameLaunched(object sender, GameLaunchedEventArgs e)
@@ -146,30 +202,27 @@ namespace WarpMod
             configMenu.AddBoolOption(
                 mod: this.ModManifest,
                 name: () => "Enable Grid Warp",
-                tooltip: () => "Whether to enable warping using the grid menu (K key).",
-                getValue: () => this.config.MapWarpEnabled,
-                setValue: value => {
-                    this.config.MapWarpEnabled = value;
-                    this.mapWarpEnabled = value;
-                }
+                tooltip: () => "Whether to enable warping using the grid menu.",
+                getValue: () => this.config.EnableWarping,  // Updated from MapWarpEnabled
+                setValue: value => this.config.EnableWarping = value  // Updated from MapWarpEnabled
+            );
+            
+            // Make this option more clear and move it higher in the settings
+            configMenu.AddBoolOption(
+                mod: this.ModManifest,
+                name: () => "Use Atlas Without Item (K Key)",
+                tooltip: () => "If enabled, allows opening the atlas menu by pressing the Warp Key (K) without having the Magic Atlas in inventory. If disabled, you must find the Magic Atlas item at the town fountain.",
+                getValue: () => this.config.AllowWarpingWithoutItem,
+                setValue: value => this.config.AllowWarpingWithoutItem = value
             );
             
             // Add keybind option
             configMenu.AddKeybindList(
                 mod: this.ModManifest,
                 name: () => "Warp Key",
-                tooltip: () => "The key to press to open the warp menu.",
+                tooltip: () => "The key to press to open the warp menu (if using the atlas without item is enabled).",
                 getValue: () => this.config.WarpKey,
                 setValue: value => this.config.WarpKey = value
-            );
-            
-            // Add option for map caching
-            configMenu.AddBoolOption(
-                mod: this.ModManifest,
-                name: () => "Enable Map Caching",
-                tooltip: () => "Whether to cache map thumbnails for better performance.",
-                getValue: () => this.config.EnableMapCaching,
-                setValue: value => this.config.EnableMapCaching = value
             );
             
             // Add option for grouping modded locations
@@ -179,15 +232,6 @@ namespace WarpMod
                 tooltip: () => "Whether to show modded locations in a separate category.",
                 getValue: () => this.config.GroupModdedLocations,
                 setValue: value => this.config.GroupModdedLocations = value
-            );
-            
-            // Add option for search functionality
-            configMenu.AddBoolOption(
-                mod: this.ModManifest,
-                name: () => "Enable Location Search",
-                tooltip: () => "Whether to enable search functionality for modded locations.",
-                getValue: () => this.config.EnableLocationSearch,
-                setValue: value => this.config.EnableLocationSearch = value
             );
             
             // Add option for warp effects
@@ -208,16 +252,56 @@ namespace WarpMod
                 setValue: value => this.config.ShowSVELocations = value
             );
             
-            // Add integer option for max locations per category
+            // Removed "Show More Locations" option as MaxLocationsPerCategory is now fixed
+
+            // Add option to hide locked locations
             configMenu.AddBoolOption(
                 mod: this.ModManifest,
-                name: () => "Show More Locations",
-                tooltip: () => "Whether to show many locations per category.",
-                getValue: () => this.config.MaxLocationsPerCategory > 8,
-                setValue: value => this.config.MaxLocationsPerCategory = value ? 12 : 8
+                name: () => "Hide Locked Locations",
+                tooltip: () => "Hide warp destinations until the player unlocks them in the game.",
+                getValue: () => this.config.HideLockedLocations,
+                setValue: value => this.config.HideLockedLocations = value
+            );
+
+            // Add option to show indoor/special locations
+            configMenu.AddBoolOption(
+                mod: this.ModManifest,
+                name: () => "Show Indoor & Special Locations",
+                tooltip: () => "Include shops, houses, mines, caves, etc., in the warp menu.",
+                getValue: () => this.config.ShowIndoorAndSpecialLocations,
+                setValue: value => this.config.ShowIndoorAndSpecialLocations = value
             );
 
             this.Monitor.Log("GMCM integration completed", LogLevel.Info);
+        }
+
+        // Track the last item slot used for right-click
+        private int? lastRightClickSlot = null;
+
+        // Listen for right-click to track which slot was used
+        private void OnButtonReleased(object sender, ButtonReleasedEventArgs e)
+        {
+            if (!Context.IsWorldReady || Game1.activeClickableMenu != null)
+                return;
+            if (e.Button.IsUseToolButton())
+            {
+                int slot = Game1.player.CurrentToolIndex;
+                lastRightClickSlot = slot;
+            }
+        }
+
+        // Listen for inventory changes to detect item usage
+        private void OnInventoryChanged(object sender, InventoryChangedEventArgs e)
+        {
+            if (!Context.IsWorldReady || Game1.activeClickableMenu != null)
+                return;
+            // Check if the player is holding the Magic Atlas and just used it
+            var heldItem = Game1.player.CurrentItem as StardewValley.Object;
+            if (heldItem != null && heldItem.modData != null && heldItem.modData.ContainsKey("ragdollkb.magicatlas"))
+            {
+                // Open the warp menu
+                Game1.activeClickableMenu = new GridWarpMenu(this.Helper, this.Monitor, this.config);
+            }
         }
     }
 }

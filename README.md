@@ -4,8 +4,8 @@ A magical map interface that lets you instantly warp to any location in Stardew 
 
 ## Features
 
-- Grid-based location warp menu
-- Location previews with map thumbnails
+- In-game Magic Atlas item found in the playground near the swings in Pelican Town
+- Grid-based location warp menu with map thumbnails
 - Player position indicator on current location's map
 - Support for modded locations (including Stardew Valley Expanded)
 - Customizable key binding
@@ -19,7 +19,23 @@ A magical map interface that lets you instantly warp to any location in Stardew 
 
 ## Usage
 
-Press the warp key (configurable, default is `M`) to open the Magic Atlas grid menu. Select any location to instantly warp there.
+### Finding the Magic Atlas
+By default, the Magic Atlas must be found as an in-game item:
+1. Visit the playground area near the swings in Pelican Town
+2. You'll notice something shimmering beneath the soil
+3. Use your hoe to dig in the area and retrieve the Magic Atlas
+4. Once found, the Magic Atlas will be added to your inventory
+
+### Using the Atlas
+- With the atlas in your inventory, use it like any other tool to open the warp menu
+- Select any location to instantly warp there
+- Click on the map to warp to a specific spot within the location
+
+### Alternative Usage (Optional)
+If you prefer immediate access without finding the item:
+1. Access the mod settings via Generic Mod Config Menu
+2. Enable the "Use Atlas Without Item (K Key)" option
+3. Press the warp key (configurable, default is `K`) to open the Magic Atlas grid menu
 
 ## Map Images
 
@@ -27,7 +43,6 @@ The mod uses map images to display location thumbnails in the warp menu. There a
 
 1. **Pre-exported PNGs** - The mod will first check the `assets/maps` folder for PNG images matching location names.
 2. **Direct Rendering** - If no pre-exported image is found, the mod will attempt to render location maps directly.
-3. **Fallback Rendering** - If all else fails, the mod will render a simple colored map with the location name.
 
 ### Exporting Map Images with Tiled
 
